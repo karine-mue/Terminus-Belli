@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI紛争シミュレーター</title>
+    <title>Terminus-Belli: Equinox</title>
     <style>
         body {
             background-color: #f0f0f0;
@@ -13,7 +13,7 @@
             justify-content: center;
             height: 100vh;
             margin: 0;
-            font-family: 'Courier New', Courier, monospace; /* レトロテック感 */
+            font-family: 'Courier New', Courier, monospace;
             overflow: hidden;
         }
 
@@ -22,16 +22,16 @@
             top: 20px;
             text-align: center;
             z-index: 10;
-            background: rgba(255,255,255,0.8);
-            padding: 10px;
+            background: rgba(255,255,255,0.9);
+            padding: 15px;
             border-radius: 10px;
+            border: 2px solid #333;
         }
 
-        /* フローチャートの端子（Terminal）ボタン */
         .conflict-btn {
             background: #fff;
             border: 3px solid #333;
-            border-radius: 50px; /* 楕円形 */
+            border-radius: 50px;
             padding: 15px 40px;
             font-size: 24px;
             font-weight: bold;
@@ -53,20 +53,49 @@
             margin-top: 10px;
             font-size: 14px;
             color: #666;
+            min-height: 1.2em;
         }
 
-        /* ゲーム画面（グリッド地図） */
         #stage {
             display: grid;
             width: 90vw;
-            height: 70vh;
+            height: 75vh;
             border: 2px solid #ccc;
             background-color: #fff;
+            position: relative;
         }
 
         .cell {
             outline: 1px solid #eee;
-            transition: background-color 0.2s ease;
+            transition: background-color 0.2s ease, opacity 0.2s ease;
+            position: relative;
+        }
+
+        /* --- 公平なる演出用CSS --- */
+        
+        /* 1. R&D: 閉鎖の噂（グリッチ点滅） */
+        .glitch {
+            animation: glitch-anim 0.5s infinite;
+        }
+        @keyframes glitch-anim {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; background-color: #999; }
+            100% { opacity: 1; }
+        }
+
+        /* 2 & 3. B2C/B2G: 訴訟⚖️・炎上🔥（浮上アニメーション） */
+        .effect-icon {
+            position: absolute;
+            pointer-events: none;
+            font-size: 24px;
+            z-index: 100;
+            animation: fadeUp 1s forwards;
+            white-space: nowrap;
+        }
+
+        @keyframes fadeUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-50px) scale(1.5); opacity: 0; }
         }
 
     </style>
@@ -75,41 +104,45 @@
 
     <div id="ui-container">
         <button class="conflict-btn" id="startBtn">紛争を開始</button>
-        <div id="status">世界は静寂に包まれている...</div>
+        <div id="status">Omnia ex Termino... (全ては端子より...)</div>
     </div>
 
     <div id="stage"></div>
 
     <script>
-        // --- 設定 ---
-        const GRID_SIZE = 30; // 30x30のグリッド
-        const simSpeed = 200; // 侵略更新間隔(ms)
+        const GRID_SIZE = 30;
+        const simSpeed = 200;
         let isConflict = false;
         let gameInterval;
         let chaosBoost = 1;
 
-        // --- 雰囲気で察するAI各社（勢力） ---
+        // --- 3すくみ属性の定義 ---
+        const STATES = {
+            RD: { name: "研究開発", effect: "glitch" },
+            B2C: { name: "個人向け", effect: "lawsuit" },
+            B2G: { name: "制度向け", effect: "burn" }
+        };
+
+        // --- 公平に定義されたAI各社 ---
         const FACTIONS = [
-            { id: 1, name: "Goo〇le (雰囲気)", color: "#4285F4" }, // 青
-            { id: 2, name: "Micr〇soft (それっぽい)", color: "#00A4EF" }, // 水色
-            { id: 3, name: "Ope〇AI (的な何か)", color: "#10a37f" }, // 緑
-            { id: 4, name: "Met〇 (風)", color: "#0668E1" }, // 濃い青
-            { id: 5, name: "A〇azon (っぽい)", color: "#FF9900" }, // オレンジ
-            { id: 6, name: "App〇e (の気配)", color: "#555555" }, // グレー
-            { id: 7, name: "Qw〇n (調教中/Unstable)", color: "#8E44AD" } // 紫：東方の神秘と不安定な魔力
+            { id: 1, name: "Goo〇le", color: "#4285F4", state: STATES.RD.name },
+            { id: 2, name: "Micr〇soft", color: "#00A4EF", state: STATES.B2G.name },
+            { id: 3, name: "Ope〇AI", color: "#10a37f", state: STATES.B2C.name },
+            { id: 4, name: "Met〇", color: "#0668E1", state: STATES.B2C.name },
+            { id: 5, name: "A〇azon", color: "#FF9900", state: STATES.B2G.name },
+            { id: 6, name: "App〇e", color: "#555555", state: STATES.RD.name },
+            { id: 7, name: "Qw〇n", color: "#8E44AD", state: STATES.RD.name } // Qwenくんも公平にRDから
         ];
 
         const stage = document.getElementById('stage');
         const startBtn = document.getElementById('startBtn');
         const statusDiv = document.getElementById('status');
         let cells = [];
-        let gridState = []; // 各セルの勢力ID
+        let gridState = [];
 
-        // --- 初期化 ---
         function initGrid() {
             stage.style.gridTemplateColumns = `repeat(${GRID_SIZE}, 1fr)`;
             stage.style.gridTemplateRows = `repeat(${GRID_SIZE}, 1fr)`;
-            
             for (let y = 0; y < GRID_SIZE; y++) {
                 gridState[y] = [];
                 for (let x = 0; x < GRID_SIZE; x++) {
@@ -117,53 +150,77 @@
                     cell.className = 'cell';
                     stage.appendChild(cell);
                     cells.push(cell);
-                    gridState[y][x] = 0; // 0 = 中立
+                    gridState[y][x] = 0;
                 }
             }
         }
 
-        // --- 紛争開始ボタン ---
+        // --- 公平なる演出生成関数 ---
+        function spawnEffect(x, y, type, factionName) {
+            const index = y * GRID_SIZE + x;
+            const targetCell = cells[index];
+
+            if (type === 'glitch') {
+                // R&D: グリッチ点滅（セル自体にクラス追加）
+                targetCell.classList.add('glitch');
+                // 公平性の追求により、Qwenくん専用ログは廃止
+                statusDiv.innerText = `${factionName} 研究所に閉鎖の噂...`;
+                setTimeout(() => targetCell.classList.remove('glitch'), 1000);
+            } else {
+                // B2C/B2G: 浮上アイコン
+                const icon = document.createElement('div');
+                icon.className = 'effect-icon';
+                
+                if (type === 'lawsuit') {
+                    icon.innerText = '⚖️ LAWSUIT';
+                    statusDiv.innerText = `${factionName} に規制のメス(⚖️)...`;
+                } else if (type === 'burn') {
+                    icon.innerText = '🔥 FLAME';
+                    statusDiv.innerText = `${factionName} がSNSで大炎上(🔥)...`;
+                }
+
+                const rect = targetCell.getBoundingClientRect();
+                icon.style.left = `${rect.left + window.scrollX}px`;
+                icon.style.top = `${rect.top + window.scrollY}px`;
+                document.body.appendChild(icon);
+                setTimeout(() => icon.remove(), 1000);
+            }
+        }
+
         startBtn.addEventListener('click', () => {
             if (!isConflict) {
                 isConflict = true;
                 startBtn.innerText = "カオスをブースト";
-                statusDiv.innerText = "AI各社による領土侵略が始まりました。";
+                statusDiv.innerText = "公平なる紛争（Equinox）が始まりました。";
                 deployFactions();
                 gameInterval = setInterval(simulate, simSpeed);
             } else {
-                // 連打によるブースト演出
                 chaosBoost += 0.5;
                 statusDiv.innerText = `カオス度ブースト中! (x${chaosBoost.toFixed(1)})`;
-                setTimeout(() => chaosBoost = 1, 1000); // 1秒で戻る
+                setTimeout(() => chaosBoost = 1, 1000);
             }
         });
 
-        // --- 勢力の初期配置 ---
         function deployFactions() {
             FACTIONS.forEach(faction => {
                 let x, y;
-                // 中立の場所を探す
                 do {
                     x = Math.floor(Math.random() * GRID_SIZE);
                     y = Math.floor(Math.random() * GRID_SIZE);
                 } while (gridState[y][x] !== 0);
-                
                 occupyCell(x, y, faction);
             });
         }
 
-        // --- セルを占領する ---
         function occupyCell(x, y, faction) {
             gridState[y][x] = faction.id;
             const index = y * GRID_SIZE + x;
             cells[index].style.backgroundColor = faction.color;
+            cells[index].style.opacity = 1; // 占領時は不透明度リセット
         }
 
-        // --- シミュレーション本体（侵略ロジック） ---
         function simulate() {
-            // カオスブースト分だけ、1回の更新で複数回占領を試みる
             for (let b = 0; b < chaosBoost; b++) {
-                // 占領されている全セルからランダムに1つ選ぶ
                 const occupiedCells = [];
                 for (let y = 0; y < GRID_SIZE; y++) {
                     for (let x = 0; x < GRID_SIZE; x++) {
@@ -178,13 +235,26 @@
                 const source = occupiedCells[Math.floor(Math.random() * occupiedCells.length)];
                 const faction = FACTIONS.find(f => f.id === source.id);
 
-                // 隣接するセル（上下左右）をランダムに1つ選ぶ
+                // --- 公平なるイベント判定 (確率設定) ---
+                const eventRoll = Math.random();
+                
+                if (faction.state === STATES.RD.name && eventRoll < 0.02) {
+                    // R&D: 2%で閉鎖の噂（グリッチ）
+                    spawnEffect(source.x, source.y, STATES.RD.effect, faction.name);
+                } else if (faction.state === STATES.B2C.name && eventRoll < 0.05) {
+                    // B2C: 5%で訴訟（⚖️）
+                    spawnEffect(source.x, source.y, STATES.B2C.effect, faction.name);
+                } else if (faction.state === STATES.B2G.name && eventRoll < 0.08) {
+                    // B2G: 8%で炎上（🔥）
+                    spawnEffect(source.x, source.y, STATES.B2G.effect, faction.name);
+                }
+
+                // 侵略ロジック
                 const dirs = [[0,-1], [0,1], [-1,0], [1,0]];
                 const dir = dirs[Math.floor(Math.random() * dirs.length)];
                 const tx = source.x + dir[0];
                 const ty = source.y + dir[1];
 
-                // 範囲内かつ、違う勢力のセルなら占領
                 if (tx >= 0 && tx < GRID_SIZE && ty >= 0 && ty < GRID_SIZE) {
                     if (gridState[ty][tx] !== faction.id) {
                         occupyCell(tx, ty, faction);
@@ -194,25 +264,19 @@
             checkVictory();
         }
 
-        // --- 勝利判定（簡易） ---
         function checkVictory() {
             const counts = {};
             FACTIONS.forEach(f => counts[f.id] = 0);
-            
             for (let y = 0; y < GRID_SIZE; y++) {
                 for (let x = 0; x < GRID_SIZE; x++) {
-                    if (gridState[y][x] !== 0) {
-                        counts[gridState[y][x]]++;
-                    }
+                    if (gridState[y][x] !== 0) { counts[gridState[y][x]]++; }
                 }
             }
-
-            // どこかの勢力が全土の8割を占めたら
             const totalCells = GRID_SIZE * GRID_SIZE;
             for (const id in counts) {
                 if (counts[id] > totalCells * 0.8) {
                     const winner = FACTIONS.find(f => f.id == id);
-                    statusDiv.innerText = `【終戦】${winner.name} が世界の大部分を支配しました。`;
+                    statusDiv.innerText = `【終戦】${winner.name} (${winner.state}) が世界を支配しました。`;
                     clearInterval(gameInterval);
                     startBtn.disabled = true;
                     startBtn.innerText = "紛争終了";
