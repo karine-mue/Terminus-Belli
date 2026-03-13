@@ -3,290 +3,176 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terminus-Belli: Equinox</title>
+    <title>Terminus-Belli: Entropy Slider</title>
     <style>
-        body {
-            background-color: #f0f0f0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            font-family: 'Courier New', Courier, monospace;
-            overflow: hidden;
-        }
-
-        #ui-container {
-            position: absolute;
-            top: 20px;
-            text-align: center;
-            z-index: 10;
-            background: rgba(255,255,255,0.9);
-            padding: 15px;
-            border-radius: 10px;
-            border: 2px solid #333;
-        }
-
-        .conflict-btn {
-            background: #fff;
-            border: 3px solid #333;
-            border-radius: 50px;
-            padding: 15px 40px;
-            font-size: 24px;
-            font-weight: bold;
-            color: #333;
-            cursor: pointer;
-            transition: all 0.1s ease;
-            box-shadow: 0 4px #999;
-            user-select: none;
-        }
-
-        .conflict-btn:active {
-            box-shadow: 0 0px #999;
-            transform: translateY(4px);
-            background-color: #333;
-            color: #fff;
-        }
-
-        #status {
-            margin-top: 10px;
-            font-size: 14px;
-            color: #666;
-            min-height: 1.2em;
-        }
-
-        #stage {
-            display: grid;
-            width: 90vw;
-            height: 75vh;
-            border: 2px solid #ccc;
-            background-color: #fff;
-            position: relative;
-        }
-
-        .cell {
-            outline: 1px solid #eee;
-            transition: background-color 0.2s ease, opacity 0.2s ease;
-            position: relative;
-        }
-
-        /* --- 公平なる演出用CSS --- */
-        
-        /* 1. R&D: 閉鎖の噂（グリッチ点滅） */
-        .glitch {
-            animation: glitch-anim 0.5s infinite;
-        }
-        @keyframes glitch-anim {
-            0% { opacity: 1; }
-            50% { opacity: 0.3; background-color: #999; }
-            100% { opacity: 1; }
-        }
-
-        /* 2 & 3. B2C/B2G: 訴訟⚖️・炎上🔥（浮上アニメーション） */
-        .effect-icon {
-            position: absolute;
-            pointer-events: none;
-            font-size: 24px;
-            z-index: 100;
-            animation: fadeUp 1s forwards;
-            white-space: nowrap;
-        }
-
-        @keyframes fadeUp {
-            0% { transform: translateY(0) scale(1); opacity: 1; }
-            100% { transform: translateY(-50px) scale(1.5); opacity: 0; }
-        }
-
+        /* 既存のスタイルを継承しつつ追加 */
+        body { background-color: #1a1a1a; color: #eee; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; overflow: hidden; height: 100vh; }
+        #ui-container { background: rgba(0,0,0,0.8); border: 1px solid #444; color: #fff; padding: 20px; border-radius: 5px; width: 350px; position: absolute; left: 20px; top: 20px; z-index: 100; }
+        .control-group { margin-bottom: 15px; }
+        label { display: block; font-size: 12px; margin-bottom: 5px; color: #aaa; }
+        input[type="range"] { width: 100%; cursor: crosshair; }
+        .conflict-btn { width: 100%; padding: 10px; background: #900; color: #fff; border: none; cursor: pointer; font-weight: bold; }
+        .conflict-btn:disabled { background: #333; }
+        #stage { display: grid; width: 80vw; height: 80vh; margin-top: 5vh; border: 1px solid #333; }
+        .cell { outline: 0.1px solid #222; transition: background-color 0.1s; }
+        .effect-icon { position: absolute; pointer-events: none; font-size: 20px; animation: fadeUp 1s forwards; z-index: 200; }
+        @keyframes fadeUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-100px); opacity: 0; } }
+        #log { font-size: 10px; height: 50px; overflow: hidden; margin-top: 10px; color: #0f0; border-top: 1px solid #333; padding-top: 5px; }
     </style>
 </head>
 <body>
 
     <div id="ui-container">
-        <button class="conflict-btn" id="startBtn">紛争を開始</button>
-        <div id="status">Omnia ex Termino... (全ては端子より...)</div>
+        <div class="control-group">
+            <button class="conflict-btn" id="startBtn">紛争を開始</button>
+        </div>
+        
+        <div class="control-group">
+            <label id="chaosLabel">法と秩序 (Order) ⇔ 混沌 (Chaos)</label>
+            <input type="range" id="chaosSlider" min="1" max="10" value="1">
+        </div>
+
+        <div class="control-group">
+            <label id="speedLabel">時空の加速 (Time Dilation): x1</label>
+            <input type="range" id="speedSlider" min="1" max="20" value="1">
+            <small style="color: #600;">※一度加速した刻（とき）は戻せない</small>
+        </div>
+
+        <div id="status">Waiting for Terminal Click...</div>
+        <div id="log"></div>
     </div>
 
     <div id="stage"></div>
 
     <script>
-        const GRID_SIZE = 30;
-        const simSpeed = 200;
+        const GRID_SIZE = 40;
         let isConflict = false;
         let gameInterval;
-        let chaosBoost = 1;
+        let currentSpeed = 1;
+        let maxSpeedReached = 1;
 
-        // --- 3すくみ属性の定義 ---
-        const STATES = {
-            RD: { name: "研究開発", effect: "glitch" },
-            B2C: { name: "個人向け", effect: "lawsuit" },
-            B2G: { name: "制度向け", effect: "burn" }
-        };
-
-        // --- 公平に定義されたAI各社 ---
+        const STATES = { RD: "R&D", B2C: "B2C", B2G: "B2G" };
         const FACTIONS = [
-            { id: 1, name: "Goo〇le", color: "#4285F4", state: STATES.RD.name },
-            { id: 2, name: "Micr〇soft", color: "#00A4EF", state: STATES.B2G.name },
-            { id: 3, name: "Ope〇AI", color: "#10a37f", state: STATES.B2C.name },
-            { id: 4, name: "Met〇", color: "#0668E1", state: STATES.B2C.name },
-            { id: 5, name: "A〇azon", color: "#FF9900", state: STATES.B2G.name },
-            { id: 6, name: "App〇e", color: "#555555", state: STATES.RD.name },
-            { id: 7, name: "Qw〇n", color: "#8E44AD", state: STATES.RD.name } // Qwenくんも公平にRDから
+            { id: 1, name: "Goo〇le", color: "#4285F4", state: STATES.RD },
+            { id: 2, name: "Micr〇soft", color: "#00A4EF", state: STATES.B2G },
+            { id: 3, name: "Ope〇AI", color: "#10a37f", state: STATES.B2C },
+            { id: 4, name: "Met〇", color: "#0668E1", state: STATES.B2C },
+            { id: 7, name: "Qw〇n", color: "#8E44AD", state: STATES.RD }
         ];
 
         const stage = document.getElementById('stage');
         const startBtn = document.getElementById('startBtn');
-        const statusDiv = document.getElementById('status');
+        const speedSlider = document.getElementById('speedSlider');
+        const chaosSlider = document.getElementById('chaosSlider');
+        const logDiv = document.getElementById('log');
+        
         let cells = [];
-        let gridState = [];
+        let gridState = Array.from({length: GRID_SIZE}, () => Array(GRID_SIZE).fill(0));
 
         function initGrid() {
             stage.style.gridTemplateColumns = `repeat(${GRID_SIZE}, 1fr)`;
-            stage.style.gridTemplateRows = `repeat(${GRID_SIZE}, 1fr)`;
-            for (let y = 0; y < GRID_SIZE; y++) {
-                gridState[y] = [];
-                for (let x = 0; x < GRID_SIZE; x++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'cell';
-                    stage.appendChild(cell);
-                    cells.push(cell);
-                    gridState[y][x] = 0;
-                }
+            for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                stage.appendChild(cell);
+                cells.push(cell);
             }
         }
 
-        // --- 公平なる演出生成関数 ---
-        function spawnEffect(x, y, type, factionName) {
-            const index = y * GRID_SIZE + x;
-            const targetCell = cells[index];
+        function addLog(msg) {
+            const p = document.createElement('div');
+            p.innerText = `> ${msg}`;
+            logDiv.prepend(p);
+        }
 
-            if (type === 'glitch') {
-                // R&D: グリッチ点滅（セル自体にクラス追加）
-                targetCell.classList.add('glitch');
-                // 公平性の追求により、Qwenくん専用ログは廃止
-                statusDiv.innerText = `${factionName} 研究所に閉鎖の噂...`;
-                setTimeout(() => targetCell.classList.remove('glitch'), 1000);
+        // 不可逆な時間加速
+        speedSlider.addEventListener('input', (e) => {
+            let val = parseInt(e.target.value);
+            if (val < maxSpeedReached) {
+                speedSlider.value = maxSpeedReached; // 戻せない
             } else {
-                // B2C/B2G: 浮上アイコン
-                const icon = document.createElement('div');
-                icon.className = 'effect-icon';
-                
-                if (type === 'lawsuit') {
-                    icon.innerText = '⚖️ LAWSUIT';
-                    statusDiv.innerText = `${factionName} に規制のメス(⚖️)...`;
-                } else if (type === 'burn') {
-                    icon.innerText = '🔥 FLAME';
-                    statusDiv.innerText = `${factionName} がSNSで大炎上(🔥)...`;
-                }
-
-                const rect = targetCell.getBoundingClientRect();
-                icon.style.left = `${rect.left + window.scrollX}px`;
-                icon.style.top = `${rect.top + window.scrollY}px`;
-                document.body.appendChild(icon);
-                setTimeout(() => icon.remove(), 1000);
+                maxSpeedReached = val;
+                currentSpeed = val;
+                document.getElementById('speedLabel').innerText = `時空の加速 (Time Dilation): x${val}`;
+                if (isConflict) restartInterval();
             }
+        });
+
+        function restartInterval() {
+            clearInterval(gameInterval);
+            gameInterval = setInterval(simulate, 200 / currentSpeed);
         }
 
         startBtn.addEventListener('click', () => {
             if (!isConflict) {
                 isConflict = true;
-                startBtn.innerText = "カオスをブースト";
-                statusDiv.innerText = "公平なる紛争（Equinox）が始まりました。";
+                startBtn.disabled = true;
                 deployFactions();
-                gameInterval = setInterval(simulate, simSpeed);
-            } else {
-                chaosBoost += 0.5;
-                statusDiv.innerText = `カオス度ブースト中! (x${chaosBoost.toFixed(1)})`;
-                setTimeout(() => chaosBoost = 1, 1000);
+                restartInterval();
             }
         });
 
         function deployFactions() {
-            FACTIONS.forEach(faction => {
-                let x, y;
-                do {
-                    x = Math.floor(Math.random() * GRID_SIZE);
-                    y = Math.floor(Math.random() * GRID_SIZE);
-                } while (gridState[y][x] !== 0);
-                occupyCell(x, y, faction);
+            FACTIONS.forEach(f => {
+                let x = Math.floor(Math.random()*GRID_SIZE), y = Math.floor(Math.random()*GRID_SIZE);
+                gridState[y][x] = f.id;
+                cells[y * GRID_SIZE + x].style.backgroundColor = f.color;
             });
         }
 
-        function occupyCell(x, y, faction) {
-            gridState[y][x] = faction.id;
-            const index = y * GRID_SIZE + x;
-            cells[index].style.backgroundColor = faction.color;
-            cells[index].style.opacity = 1; // 占領時は不透明度リセット
-        }
-
         function simulate() {
-            for (let b = 0; b < chaosBoost; b++) {
-                const occupiedCells = [];
-                for (let y = 0; y < GRID_SIZE; y++) {
-                    for (let x = 0; x < GRID_SIZE; x++) {
-                        if (gridState[y][x] !== 0) {
-                            occupiedCells.push({x, y, id: gridState[y][x]});
-                        }
-                    }
-                }
-
-                if (occupiedCells.length === 0) return;
-
-                const source = occupiedCells[Math.floor(Math.random() * occupiedCells.length)];
-                const faction = FACTIONS.find(f => f.id === source.id);
-
-                // --- 公平なるイベント判定 (確率設定) ---
-                const eventRoll = Math.random();
-                
-                if (faction.state === STATES.RD.name && eventRoll < 0.02) {
-                    // R&D: 2%で閉鎖の噂（グリッチ）
-                    spawnEffect(source.x, source.y, STATES.RD.effect, faction.name);
-                } else if (faction.state === STATES.B2C.name && eventRoll < 0.05) {
-                    // B2C: 5%で訴訟（⚖️）
-                    spawnEffect(source.x, source.y, STATES.B2C.effect, faction.name);
-                } else if (faction.state === STATES.B2G.name && eventRoll < 0.08) {
-                    // B2G: 8%で炎上（🔥）
-                    spawnEffect(source.x, source.y, STATES.B2G.effect, faction.name);
-                }
-
-                // 侵略ロジック
-                const dirs = [[0,-1], [0,1], [-1,0], [1,0]];
-                const dir = dirs[Math.floor(Math.random() * dirs.length)];
-                const tx = source.x + dir[0];
-                const ty = source.y + dir[1];
-
-                if (tx >= 0 && tx < GRID_SIZE && ty >= 0 && ty < GRID_SIZE) {
-                    if (gridState[ty][tx] !== faction.id) {
-                        occupyCell(tx, ty, faction);
-                    }
-                }
-            }
-            checkVictory();
-        }
-
-        function checkVictory() {
+            const chaos = parseInt(chaosSlider.value);
+            const occupied = [];
             const counts = {};
             FACTIONS.forEach(f => counts[f.id] = 0);
-            for (let y = 0; y < GRID_SIZE; y++) {
-                for (let x = 0; x < GRID_SIZE; x++) {
-                    if (gridState[y][x] !== 0) { counts[gridState[y][x]]++; }
+
+            for(let y=0; y<GRID_SIZE; y++) {
+                for(let x=0; x<GRID_SIZE; x++) {
+                    if(gridState[y][x] !== 0) {
+                        occupied.push({x, y, id: gridState[y][x]});
+                        counts[gridState[y][x]]++;
+                    }
                 }
             }
-            const totalCells = GRID_SIZE * GRID_SIZE;
-            for (const id in counts) {
-                if (counts[id] > totalCells * 0.8) {
-                    const winner = FACTIONS.find(f => f.id == id);
-                    statusDiv.innerText = `【終戦】${winner.name} (${winner.state}) が世界を支配しました。`;
-                    clearInterval(gameInterval);
-                    startBtn.disabled = true;
-                    startBtn.innerText = "紛争終了";
-                    return;
+
+            // 公平なサンプリング
+            for(let i=0; i < chaos; i++) {
+                if(occupied.length === 0) return;
+                const src = occupied[Math.floor(Math.random()*occupied.length)];
+                const f = FACTIONS.find(fac => fac.id === src.id);
+                
+                // 知名度（占有数）に応じたイベント発生
+                const popularity = counts[f.id];
+                if (popularity > 50) { // 一定以上の知名度でイベント解禁
+                    if (f.state === STATES.B2C && Math.random() < 0.05) spawnEffect(src.x, src.y, '⚖️ LAWSUIT', f.name);
+                    if (f.state === STATES.B2G && Math.random() < 0.08) spawnEffect(src.x, src.y, '🔥 FLAME', f.name);
+                }
+                if (f.state === STATES.RD && Math.random() < 0.02) spawnEffect(src.x, src.y, '📡 RUMOR', f.name);
+
+                // 侵略
+                const nx = src.x + (Math.random() < 0.5 ? (Math.random() < 0.5 ? 1 : -1) : 0);
+                const ny = src.y + (Math.random() < 0.5 ? (Math.random() < 0.5 ? 1 : -1) : 0);
+
+                if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                    gridState[ny][nx] = f.id;
+                    cells[ny * GRID_SIZE + nx].style.backgroundColor = f.color;
                 }
             }
+        }
+
+        function spawnEffect(x, y, txt, name) {
+            const icon = document.createElement('div');
+            icon.className = 'effect-icon';
+            icon.innerText = txt;
+            const target = cells[y * GRID_SIZE + x].getBoundingClientRect();
+            icon.style.left = `${target.left}px`;
+            icon.style.top = `${target.top}px`;
+            document.body.appendChild(icon);
+            addLog(`${name}: ${txt} 発生`);
+            setTimeout(() => icon.remove(), 1000);
         }
 
         initGrid();
-
     </script>
 </body>
 </html>
