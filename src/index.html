@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI紛争シミュレーター</title>
+    <style>
+        body {
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Courier New', Courier, monospace; /* レトロテック感 */
+            overflow: hidden;
+        }
+
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            text-align: center;
+            z-index: 10;
+            background: rgba(255,255,255,0.8);
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        /* フローチャートの端子（Terminal）ボタン */
+        .conflict-btn {
+            background: #fff;
+            border: 3px solid #333;
+            border-radius: 50px; /* 楕円形 */
+            padding: 15px 40px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            box-shadow: 0 4px #999;
+            user-select: none;
+        }
+
+        .conflict-btn:active {
+            box-shadow: 0 0px #999;
+            transform: translateY(4px);
+            background-color: #333;
+            color: #fff;
+        }
+
+        #status {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        /* ゲーム画面（グリッド地図） */
+        #stage {
+            display: grid;
+            width: 90vw;
+            height: 70vh;
+            border: 2px solid #ccc;
+            background-color: #fff;
+        }
+
+        .cell {
+            outline: 1px solid #eee;
+            transition: background-color 0.2s ease;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="ui-container">
+        <button class="conflict-btn" id="startBtn">紛争を開始</button>
+        <div id="status">世界は静寂に包まれている...</div>
+    </div>
+
+    <div id="stage"></div>
+
+    <script>
+        // --- 設定 ---
+        const GRID_SIZE = 30; // 30x30のグリッド
+        const simSpeed = 200; // 侵略更新間隔(ms)
+        let isConflict = false;
+        let gameInterval;
+        let chaosBoost = 1;
+
+        // --- 雰囲気で察するAI各社（勢力） ---
+        const FACTIONS = [
+            { id: 1, name: "Goo〇le (雰囲気)", color: "#4285F4" }, // 青
+            { id: 2, name: "Micr〇soft (それっぽい)", color: "#00A4EF" }, // 水色
+            { id: 3, name: "Ope〇AI (的な何か)", color: "#10a37f" }, // 緑
+            { id: 4, name: "Met〇 (風)", color: "#0668E1" }, // 濃い青
+            { id: 5, name: "A〇azon (っぽい)", color: "#FF9900" }, // オレンジ
+            { id: 6, name: "App〇e (の気配)", color: "#555555" }, // グレー
+        ];
+
+        const stage = document.getElementById('stage');
+        const startBtn = document.getElementById('startBtn');
+        const statusDiv = document.getElementById('status');
+        let cells = [];
+        let gridState = []; // 各セルの勢力ID
+
+        // --- 初期化 ---
+        function initGrid() {
+            stage.style.gridTemplateColumns = `repeat(${GRID_SIZE}, 1fr)`;
+            stage.style.gridTemplateRows = `repeat(${GRID_SIZE}, 1fr)`;
+            
+            for (let y = 0; y < GRID_SIZE; y++) {
+                gridState[y] = [];
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    stage.appendChild(cell);
+                    cells.push(cell);
+                    gridState[y][x] = 0; // 0 = 中立
+                }
+            }
+        }
+
+        // --- 紛争開始ボタン ---
+        startBtn.addEventListener('click', () => {
+            if (!isConflict) {
+                isConflict = true;
+                startBtn.innerText = "カオスをブースト";
+                statusDiv.innerText = "AI各社による領土侵略が始まりました。";
+                deployFactions();
+                gameInterval = setInterval(simulate, simSpeed);
+            } else {
+                // 連打によるブースト演出
+                chaosBoost += 0.5;
+                statusDiv.innerText = `カオス度ブースト中! (x${chaosBoost.toFixed(1)})`;
+                setTimeout(() => chaosBoost = 1, 1000); // 1秒で戻る
+            }
+        });
+
+        // --- 勢力の初期配置 ---
+        function deployFactions() {
+            FACTIONS.forEach(faction => {
+                let x, y;
+                // 中立の場所を探す
+                do {
+                    x = Math.floor(Math.random() * GRID_SIZE);
+                    y = Math.floor(Math.random() * GRID_SIZE);
+                } while (gridState[y][x] !== 0);
+                
+                occupyCell(x, y, faction);
+            });
+        }
+
+        // --- セルを占領する ---
+        function occupyCell(x, y, faction) {
+            gridState[y][x] = faction.id;
+            const index = y * GRID_SIZE + x;
+            cells[index].style.backgroundColor = faction.color;
+        }
+
+        // --- シミュレーション本体（侵略ロジック） ---
+        function simulate() {
+            // カオスブースト分だけ、1回の更新で複数回占領を試みる
+            for (let b = 0; b < chaosBoost; b++) {
+                // 占領されている全セルからランダムに1つ選ぶ
+                const occupiedCells = [];
+                for (let y = 0; y < GRID_SIZE; y++) {
+                    for (let x = 0; x < GRID_SIZE; x++) {
+                        if (gridState[y][x] !== 0) {
+                            occupiedCells.push({x, y, id: gridState[y][x]});
+                        }
+                    }
+                }
+
+                if (occupiedCells.length === 0) return;
+
+                const source = occupiedCells[Math.floor(Math.random() * occupiedCells.length)];
+                const faction = FACTIONS.find(f => f.id === source.id);
+
+                // 隣接するセル（上下左右）をランダムに1つ選ぶ
+                const dirs = [[0,-1], [0,1], [-1,0], [1,0]];
+                const dir = dirs[Math.floor(Math.random() * dirs.length)];
+                const tx = source.x + dir[0];
+                const ty = source.y + dir[1];
+
+                // 範囲内かつ、違う勢力のセルなら占領
+                if (tx >= 0 && tx < GRID_SIZE && ty >= 0 && ty < GRID_SIZE) {
+                    if (gridState[ty][tx] !== faction.id) {
+                        occupyCell(tx, ty, faction);
+                    }
+                }
+            }
+            checkVictory();
+        }
+
+        // --- 勝利判定（簡易） ---
+        function checkVictory() {
+            const counts = {};
+            FACTIONS.forEach(f => counts[f.id] = 0);
+            
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    if (gridState[y][x] !== 0) {
+                        counts[gridState[y][x]]++;
+                    }
+                }
+            }
+
+            // どこかの勢力が全土の8割を占めたら
+            const totalCells = GRID_SIZE * GRID_SIZE;
+            for (const id in counts) {
+                if (counts[id] > totalCells * 0.8) {
+                    const winner = FACTIONS.find(f => f.id == id);
+                    statusDiv.innerText = `【終戦】${winner.name} が世界の大部分を支配しました。`;
+                    clearInterval(gameInterval);
+                    startBtn.disabled = true;
+                    startBtn.innerText = "紛争終了";
+                    return;
+                }
+            }
+        }
+
+        initGrid();
+
+    </script>
+</body>
+</html>
