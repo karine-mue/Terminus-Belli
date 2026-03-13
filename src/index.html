@@ -2,74 +2,92 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terminus-Belli: Entropy Slider</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Terminus-Belli: Mobile HUD</title>
     <style>
-        /* 既存のスタイルを継承しつつ追加 */
-        body { background-color: #1a1a1a; color: #eee; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; overflow: hidden; height: 100vh; }
-        #ui-container { background: rgba(0,0,0,0.8); border: 1px solid #444; color: #fff; padding: 20px; border-radius: 5px; width: 350px; position: absolute; left: 20px; top: 20px; z-index: 100; }
-        .control-group { margin-bottom: 15px; }
-        label { display: block; font-size: 12px; margin-bottom: 5px; color: #aaa; }
-        input[type="range"] { width: 100%; cursor: crosshair; }
-        .conflict-btn { width: 100%; padding: 10px; background: #900; color: #fff; border: none; cursor: pointer; font-weight: bold; }
-        .conflict-btn:disabled { background: #333; }
-        #stage { display: grid; width: 80vw; height: 80vh; margin-top: 5vh; border: 1px solid #333; }
-        .cell { outline: 0.1px solid #222; transition: background-color 0.1s; }
-        .effect-icon { position: absolute; pointer-events: none; font-size: 20px; animation: fadeUp 1s forwards; z-index: 200; }
-        @keyframes fadeUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-100px); opacity: 0; } }
-        #log { font-size: 10px; height: 50px; overflow: hidden; margin-top: 10px; color: #0f0; border-top: 1px solid #333; padding-top: 5px; }
+        :root { --bg: #0a0a0a; --panel: rgba(20, 20, 20, 0.85); --accent: #900; }
+        body { background-color: var(--bg); color: #eee; font-family: sans-serif; margin: 0; overflow: hidden; height: 100vh; position: fixed; width: 100%; }
+        
+        /* 紛争地帯（グリッド） */
+        #stage { display: grid; width: 100vw; height: 100vh; z-index: 1; }
+        .cell { outline: 0.1px solid #1a1a1a; transition: background-color 0.1s; }
+
+        /* フローティングHUD（操作パネル） */
+        #hud {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 400px; background: var(--panel);
+            backdrop-filter: blur(5px); border: 1px solid #444; border-radius: 12px;
+            padding: 15px; z-index: 100; box-sizing: border-box;
+        }
+
+        /* 凡例（勢力観測） */
+        #legend {
+            position: absolute; top: 10px; left: 10px; z-index: 100;
+            background: var(--panel); padding: 10px; border-radius: 8px; font-size: 10px;
+            border: 1px solid #333; pointer-events: none;
+        }
+        .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+
+        .control-group { margin-bottom: 10px; }
+        label { font-size: 11px; color: #aaa; display: flex; justify-content: space-between; }
+        input[type="range"] { width: 100%; margin: 5px 0; accent-color: var(--accent); }
+        
+        .conflict-btn { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .conflict-btn:disabled { background: #333; color: #666; }
+
+        .effect-icon { position: absolute; pointer-events: none; font-size: 20px; animation: fadeUp 1s forwards; z-index: 200; text-shadow: 0 0 5px #000; }
+        @keyframes fadeUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-80px); opacity: 0; } }
     </style>
 </head>
 <body>
 
-    <div id="ui-container">
+    <div id="legend"></div>
+
+    <div id="hud">
         <div class="control-group">
             <button class="conflict-btn" id="startBtn">紛争を開始</button>
         </div>
         
         <div class="control-group">
-            <label id="chaosLabel">法と秩序 (Order) ⇔ 混沌 (Chaos)</label>
-            <input type="range" id="chaosSlider" min="1" max="10" value="1">
+            <label><span>秩序 (Order)</span><span>混沌 (Chaos)</span></label>
+            <input type="range" id="chaosSlider" min="1" max="20" value="1">
         </div>
 
         <div class="control-group">
-            <label id="speedLabel">時空の加速 (Time Dilation): x1</label>
-            <input type="range" id="speedSlider" min="1" max="20" value="1">
-            <small style="color: #600;">※一度加速した刻（とき）は戻せない</small>
+            <label><span>時空律 (Time): <span id="speedVal">x1</span></span><span style="color:#600">※不可逆</span></label>
+            <input type="range" id="speedSlider" min="1" max="30" value="1">
         </div>
-
-        <div id="status">Waiting for Terminal Click...</div>
-        <div id="log"></div>
+        <div id="status" style="font-size:10px; color:#888; text-align:center;">Terminal Standing by...</div>
     </div>
 
     <div id="stage"></div>
 
     <script>
-        const GRID_SIZE = 40;
+        const GRID_SIZE = 32;
         let isConflict = false;
         let gameInterval;
         let currentSpeed = 1;
         let maxSpeedReached = 1;
 
-        const STATES = { RD: "R&D", B2C: "B2C", B2G: "B2G" };
         const FACTIONS = [
-            { id: 1, name: "Goo〇le", color: "#4285F4", state: STATES.RD },
-            { id: 2, name: "Micr〇soft", color: "#00A4EF", state: STATES.B2G },
-            { id: 3, name: "Ope〇AI", color: "#10a37f", state: STATES.B2C },
-            { id: 4, name: "Met〇", color: "#0668E1", state: STATES.B2C },
-            { id: 7, name: "Qw〇n", color: "#8E44AD", state: STATES.RD }
+            { id: 1, name: "Goo〇le", color: "#4285F4", state: "RD" },
+            { id: 2, name: "Micr〇soft", color: "#00A4EF", state: "B2G" },
+            { id: 3, name: "Ope〇AI", color: "#10a37f", state: "B2C" },
+            { id: 4, name: "Met〇", color: "#0668E1", state: "B2C" },
+            { id: 7, name: "Qw〇n", color: "#8E44AD", state: "RD" }
         ];
 
         const stage = document.getElementById('stage');
         const startBtn = document.getElementById('startBtn');
+        const legend = document.getElementById('legend');
         const speedSlider = document.getElementById('speedSlider');
         const chaosSlider = document.getElementById('chaosSlider');
-        const logDiv = document.getElementById('log');
         
         let cells = [];
         let gridState = Array.from({length: GRID_SIZE}, () => Array(GRID_SIZE).fill(0));
 
-        function initGrid() {
+        function init() {
             stage.style.gridTemplateColumns = `repeat(${GRID_SIZE}, 1fr)`;
             for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
                 const cell = document.createElement('div');
@@ -77,23 +95,25 @@
                 stage.appendChild(cell);
                 cells.push(cell);
             }
+            updateLegend({});
         }
 
-        function addLog(msg) {
-            const p = document.createElement('div');
-            p.innerText = `> ${msg}`;
-            logDiv.prepend(p);
+        function updateLegend(counts) {
+            legend.innerHTML = FACTIONS.map(f => `
+                <div class="legend-item">
+                    <div class="dot" style="background:${f.color}"></div>
+                    <span>${f.name} [${f.state}] : ${counts[f.id] || 0}</span>
+                </div>
+            `).join('');
         }
 
-        // 不可逆な時間加速
         speedSlider.addEventListener('input', (e) => {
             let val = parseInt(e.target.value);
-            if (val < maxSpeedReached) {
-                speedSlider.value = maxSpeedReached; // 戻せない
-            } else {
+            if (val < maxSpeedReached) { e.target.value = maxSpeedReached; } 
+            else {
                 maxSpeedReached = val;
                 currentSpeed = val;
-                document.getElementById('speedLabel').innerText = `時空の加速 (Time Dilation): x${val}`;
+                document.getElementById('speedVal').innerText = `x${val}`;
                 if (isConflict) restartInterval();
             }
         });
@@ -107,12 +127,12 @@
             if (!isConflict) {
                 isConflict = true;
                 startBtn.disabled = true;
-                deployFactions();
+                deploy();
                 restartInterval();
             }
         });
 
-        function deployFactions() {
+        function deploy() {
             FACTIONS.forEach(f => {
                 let x = Math.floor(Math.random()*GRID_SIZE), y = Math.floor(Math.random()*GRID_SIZE);
                 gridState[y][x] = f.id;
@@ -134,25 +154,21 @@
                     }
                 }
             }
+            updateLegend(counts);
 
-            // 公平なサンプリング
             for(let i=0; i < chaos; i++) {
                 if(occupied.length === 0) return;
                 const src = occupied[Math.floor(Math.random()*occupied.length)];
                 const f = FACTIONS.find(fac => fac.id === src.id);
                 
-                // 知名度（占有数）に応じたイベント発生
-                const popularity = counts[f.id];
-                if (popularity > 50) { // 一定以上の知名度でイベント解禁
-                    if (f.state === STATES.B2C && Math.random() < 0.05) spawnEffect(src.x, src.y, '⚖️ LAWSUIT', f.name);
-                    if (f.state === STATES.B2G && Math.random() < 0.08) spawnEffect(src.x, src.y, '🔥 FLAME', f.name);
+                if (counts[f.id] > 30) {
+                    if (f.state === "B2C" && Math.random() < 0.03) spawn(src.x, src.y, '⚖️');
+                    if (f.state === "B2G" && Math.random() < 0.05) spawn(src.x, src.y, '🔥');
                 }
-                if (f.state === STATES.RD && Math.random() < 0.02) spawnEffect(src.x, src.y, '📡 RUMOR', f.name);
+                if (f.state === "RD" && Math.random() < 0.01) spawn(src.x, src.y, '📡');
 
-                // 侵略
                 const nx = src.x + (Math.random() < 0.5 ? (Math.random() < 0.5 ? 1 : -1) : 0);
                 const ny = src.y + (Math.random() < 0.5 ? (Math.random() < 0.5 ? 1 : -1) : 0);
-
                 if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
                     gridState[ny][nx] = f.id;
                     cells[ny * GRID_SIZE + nx].style.backgroundColor = f.color;
@@ -160,7 +176,7 @@
             }
         }
 
-        function spawnEffect(x, y, txt, name) {
+        function spawn(x, y, txt) {
             const icon = document.createElement('div');
             icon.className = 'effect-icon';
             icon.innerText = txt;
@@ -168,11 +184,10 @@
             icon.style.left = `${target.left}px`;
             icon.style.top = `${target.top}px`;
             document.body.appendChild(icon);
-            addLog(`${name}: ${txt} 発生`);
             setTimeout(() => icon.remove(), 1000);
         }
 
-        initGrid();
+        init();
     </script>
 </body>
 </html>
