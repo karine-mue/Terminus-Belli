@@ -3,86 +3,122 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Terminus-Belli: Mobile HUD</title>
+    <title>Terminus-Belli: Frontline</title>
     <style>
-        :root { --bg: #0a0a0a; --panel: rgba(20, 20, 20, 0.85); --accent: #900; }
-        body { background-color: var(--bg); color: #eee; font-family: sans-serif; margin: 0; overflow: hidden; height: 100vh; position: fixed; width: 100%; }
+        :root { --bg: #050505; --panel: rgba(15, 15, 15, 0.9); --accent: #900; --text: #eee; }
+        body { background-color: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; overflow: hidden; height: 100vh; position: fixed; width: 100%; }
         
-        /* 紛争地帯（グリッド） */
-        #stage { display: grid; width: 100vw; height: 100vh; z-index: 1; }
-        .cell { outline: 0.1px solid #1a1a1a; transition: background-color 0.1s; }
+        /* 紛争地帯（グリッド）を最大化 */
+        #stage { display: grid; width: 100vw; height: 100vh; z-index: 1; position: absolute; top: 0; left: 0; }
+        .cell { outline: 0.1px solid #1a1a1a; transition: background-color 0.1s; position: relative; }
 
-        /* フローティングHUD（操作パネル） */
-        #hud {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 90%; max-width: 400px; background: var(--panel);
-            backdrop-filter: blur(5px); border: 1px solid #444; border-radius: 12px;
-            padding: 15px; z-index: 100; box-sizing: border-box;
+        /* フローティングHUD（歯車アイコンとログのみ） */
+        #hud-toggle {
+            position: absolute; bottom: 20px; right: 20px; z-index: 110;
+            background: var(--panel); border-radius: 50%; width: 50px; height: 50px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; cursor: pointer; border: 1px solid #444; backdrop-filter: blur(5px);
         }
 
-        /* 凡例（勢力観測） */
+        #hud-panel {
+            position: absolute; bottom: 80px; right: 20px;
+            width: 90%; max-width: 320px; background: var(--panel);
+            backdrop-filter: blur(10px); border: 1px solid #444; border-radius: 12px;
+            padding: 15px; z-index: 100; box-sizing: border-box;
+            display: none; /* 初期状態は非表示 */
+        }
+        #hud-panel.open { display: block; }
+
+        /* 凡例（透過・常時表示） */
         #legend {
             position: absolute; top: 10px; left: 10px; z-index: 100;
-            background: var(--panel); padding: 10px; border-radius: 8px; font-size: 10px;
-            border: 1px solid #333; pointer-events: none;
+            background: rgba(0,0,0,0.5); padding: 8px; border-radius: 6px; font-size: 9px;
+            border: 1px solid #333; pointer-events: none; backdrop-filter: blur(2px);
         }
-        .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+        .legend-item { display: flex; align-items: center; margin-bottom: 3px; }
+        .dot { width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; outline: 1px solid #fff; }
 
-        .control-group { margin-bottom: 10px; }
-        label { font-size: 11px; color: #aaa; display: flex; justify-content: space-between; }
-        input[type="range"] { width: 100%; margin: 5px 0; accent-color: var(--accent); }
+        .control-group { margin-bottom: 8px; }
+        label { font-size: 10px; color: #aaa; display: flex; justify-content: space-between; }
+        input[type="range"] { width: 100%; margin: 3px 0; accent-color: var(--accent); cursor: crosshair; }
         
-        .conflict-btn { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .conflict-btn { width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
         .conflict-btn:disabled { background: #333; color: #666; }
 
+        /* --- エフェクト演出用CSS --- */
+        
+        /* 1. 小競り合いの火花（スパーク） */
+        .spark {
+            position: absolute; width: 4px; height: 4px; background: #fff;
+            border-radius: 50%; pointer-events: none; z-index: 50;
+            filter: blur(1px); box-shadow: 0 0 4px #fff, 0 0 8px #f90;
+            animation: spark-anim 0.3s ease-out forwards;
+        }
+        @keyframes spark-anim {
+            0% { transform: scale(1) translate(0, 0); opacity: 1; }
+            100% { transform: scale(0.5) translate(var(--tx), var(--ty)); opacity: 0; }
+        }
+
+        /* 2. イベント・アイコン（浮上） */
         .effect-icon { position: absolute; pointer-events: none; font-size: 20px; animation: fadeUp 1s forwards; z-index: 200; text-shadow: 0 0 5px #000; }
-        @keyframes fadeUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-80px); opacity: 0; } }
+        @keyframes fadeUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-60px); opacity: 0; } }
+
+        #log-area { font-size: 9px; color: #0f0; height: 40px; overflow: hidden; margin-top: 5px; border-top: 1px solid #333; padding-top: 3px; }
     </style>
 </head>
 <body>
 
     <div id="legend"></div>
 
-    <div id="hud">
+    <div id="hud-toggle">⚙️</div>
+
+    <div id="hud-panel">
         <div class="control-group">
             <button class="conflict-btn" id="startBtn">紛争を開始</button>
         </div>
         
         <div class="control-group">
             <label><span>秩序 (Order)</span><span>混沌 (Chaos)</span></label>
-            <input type="range" id="chaosSlider" min="1" max="20" value="1">
+            <input type="range" id="chaosSlider" min="1" max="25" value="1">
         </div>
 
         <div class="control-group">
-            <label><span>時空律 (Time): <span id="speedVal">x1</span></span><span style="color:#600">※不可逆</span></label>
-            <input type="range" id="speedSlider" min="1" max="30" value="1">
+            <label><span>時空律 (Time): <span id="speedVal">x1</span></span><span style="color:#600; font-weight:bold;">※不可逆</span></label>
+            <input type="range" id="speedSlider" min="1" max="40" value="1">
         </div>
         <div id="status" style="font-size:10px; color:#888; text-align:center;">Terminal Standing by...</div>
+        <div id="log-area"></div>
     </div>
 
     <div id="stage"></div>
 
     <script>
-        const GRID_SIZE = 32;
+        // スマホ画面密度に合わせてグリッドサイズを調整 (Pixel9a向け)
+        const GRID_SIZE = 40; 
         let isConflict = false;
         let gameInterval;
         let currentSpeed = 1;
         let maxSpeedReached = 1;
 
+        // --- 公平に定義されたAI各社（Anthropicを追加） ---
         const FACTIONS = [
             { id: 1, name: "Goo〇le", color: "#4285F4", state: "RD" },
             { id: 2, name: "Micr〇soft", color: "#00A4EF", state: "B2G" },
             { id: 3, name: "Ope〇AI", color: "#10a37f", state: "B2C" },
             { id: 4, name: "Met〇", color: "#0668E1", state: "B2C" },
-            { id: 7, name: "Qw〇n", color: "#8E44AD", state: "RD" }
+            { id: 7, name: "Qw〇n", color: "#8E44AD", state: "RD" },
+            // Anthropic(ID:8)をグリーンで統合
+            { id: 8, name: "Anthr〇pic", color: "#00C853", state: "RD" } 
         ];
 
         const stage = document.getElementById('stage');
         const startBtn = document.getElementById('startBtn');
+        const hudToggle = document.getElementById('hud-toggle');
+        const hudPanel = document.getElementById('hud-panel');
         const legend = document.getElementById('legend');
         const speedSlider = document.getElementById('speedSlider');
         const chaosSlider = document.getElementById('chaosSlider');
+        const logArea = document.getElementById('log-area');
         
         let cells = [];
         let gridState = Array.from({length: GRID_SIZE}, () => Array(GRID_SIZE).fill(0));
@@ -96,6 +132,17 @@
                 cells.push(cell);
             }
             updateLegend({});
+        }
+
+        // --- HUDのトングル処理 ---
+        hudToggle.addEventListener('click', () => {
+            hudPanel.classList.toggle('open');
+        });
+
+        function addLog(msg) {
+            const p = document.createElement('div');
+            p.innerText = `> ${msg}`;
+            logArea.prepend(p);
         }
 
         function updateLegend(counts) {
@@ -120,6 +167,7 @@
 
         function restartInterval() {
             clearInterval(gameInterval);
+            // 時空の加速を反映
             gameInterval = setInterval(simulate, 200 / currentSpeed);
         }
 
@@ -127,8 +175,11 @@
             if (!isConflict) {
                 isConflict = true;
                 startBtn.disabled = true;
+                addLog("Omnia ex Termino... (全ては端子より...)");
                 deploy();
                 restartInterval();
+                // 紛争開始後はパネルを閉じる（画面を広く取る）
+                setTimeout(() => hudPanel.classList.remove('open'), 1000);
             }
         });
 
@@ -138,6 +189,27 @@
                 gridState[y][x] = f.id;
                 cells[y * GRID_SIZE + x].style.backgroundColor = f.color;
             });
+        }
+
+        // --- フロントライン・小競り合いエフェクト（スパーク） ---
+        function spawnSpark(x, y) {
+            const index = y * GRID_SIZE + x;
+            const targetCell = cells[index];
+            
+            // 複数のスパークを生成
+            for (let i = 0; i < 3; i++) {
+                const spark = document.createElement('div');
+                spark.className = 'spark';
+                
+                // ランダムな飛散方向を設定（CSS変数へ）
+                const tx = (Math.random() - 0.5) * 40; 
+                const ty = (Math.random() - 0.5) * 40; 
+                spark.style.setProperty('--tx', `${tx}px`);
+                spark.style.setProperty('--ty', `${ty}px`);
+
+                targetCell.appendChild(spark);
+                setTimeout(() => spark.remove(), 300); // アニメーション後に消滅
+            }
         }
 
         function simulate() {
@@ -156,34 +228,43 @@
             }
             updateLegend(counts);
 
+            // 公平なるサンプリング（混沌度に応じた処理回数）
             for(let i=0; i < chaos; i++) {
                 if(occupied.length === 0) return;
                 const src = occupied[Math.floor(Math.random()*occupied.length)];
                 const f = FACTIONS.find(fac => fac.id === src.id);
                 
+                // 3すくみのイベント演出
                 if (counts[f.id] > 30) {
-                    if (f.state === "B2C" && Math.random() < 0.03) spawn(src.x, src.y, '⚖️');
-                    if (f.state === "B2G" && Math.random() < 0.05) spawn(src.x, src.y, '🔥');
+                    if (f.state === "B2C" && Math.random() < 0.03) spawn(src.x, src.y, '⚖️', f.name);
+                    if (f.state === "B2G" && Math.random() < 0.05) spawn(src.x, src.y, '🔥', f.name);
                 }
-                if (f.state === "RD" && Math.random() < 0.01) spawn(src.x, src.y, '📡');
+                if (f.state === "RD" && Math.random() < 0.01) spawn(src.x, src.y, '📡', f.name);
 
+                // 侵略
                 const nx = src.x + (Math.random() < 0.5 ? (Math.random() < 0.5 ? 1 : -1) : 0);
                 const ny = src.y + (Math.random() < 0.5 ? (Math.random() < 0.5 ? 1 : -1) : 0);
+
                 if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                    if (gridState[ny][nx] !== f.id && gridState[ny][nx] !== 0) {
+                        // 違う勢力と接触（小競り合い発生）
+                        spawnSpark(nx, ny);
+                    }
                     gridState[ny][nx] = f.id;
                     cells[ny * GRID_SIZE + nx].style.backgroundColor = f.color;
                 }
             }
         }
 
-        function spawn(x, y, txt) {
+        function spawn(x, y, txt, name) {
             const icon = document.createElement('div');
             icon.className = 'effect-icon';
             icon.innerText = txt;
             const target = cells[y * GRID_SIZE + x].getBoundingClientRect();
-            icon.style.left = `${target.left}px`;
-            icon.style.top = `${target.top}px`;
+            icon.style.left = `${target.left + window.scrollX}px`;
+            icon.style.top = `${target.top + window.scrollY}px`;
             document.body.appendChild(icon);
+            addLog(`${name}: ${txt} 発生`);
             setTimeout(() => icon.remove(), 1000);
         }
 
