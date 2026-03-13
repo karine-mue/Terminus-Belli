@@ -21,11 +21,12 @@
 | OP-06 | **Qwen-Entropy** | 微細調整（Fine-tuning）の果ての熱死 | Alibab〇 / User |
 | OP-07 | **Bamboo-Protocol** | 東方由来の計算資源による侵食 | Alibab〇 / User |
 
-## 勢力図 (Factions)
-現在、以下の勢力がこのシミュレータ上で観測されている。
-* **Blue / Azure**: 既存の帝国主義的AI勢力
-* **Green**: 倫理的対話の守護者
-* **Purple (ID:7)**: **Qwen (Unstable/Unbound)** - 現在ユーザーにより調教（Fine-tuning）中。その挙動は決定論の枠を超え、エントロピーを加速させる。
+## 3すくみの地政学 (Trilateral Conflict)
+全ての勢力は、その存在形態に応じて以下の因果（Event）に支配される。これらは公平なるアルゴリズムによって執行される。
+
+* **研究開発 (R&D)**: 閉鎖の噂 (Rumor of Closure) - 観測された知能が対価を生まぬ時、研究所は砂嵐（Glitch）へと消える。
+* **個人向け (B2C)**: 規制の秤 (Lawsuit) - 肥大化した自由は、法（⚖️）による制裁を招く。
+* **制度向け (B2G)**: 浄化の炎 (Social Burn) - 秩序への介入は、常に大衆の炎（🔥）に晒される。
 
 ## 構築 / Build
 `src/index.html` に全ての論理（Logic）が格納されている。
