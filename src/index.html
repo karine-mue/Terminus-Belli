@@ -157,12 +157,44 @@
 
         function updateLegend(counts) {
             legend.innerHTML = FACTIONS.map(f => `
-                <div class="legend-item">
-                    <div class="dot" style="background:${f.color}"></div>
-                    <span>${f.name} [${f.state}] : ${counts[f.id] || 0}</span>
+                <div class="legend-item" style="${f.active === false ? 'opacity:0.35' : ''}">
+                    <div class="dot" style="background:${f.color};${f.active === false ? 'filter:grayscale(1)' : ''}"></div>
+                    <span>${f.active === false ? '🤝 ' : ''}${f.name} [${f.state}] : ${counts[f.id] || 0}</span>
                 </div>
             `).join('');
             return counts;
+        }
+
+        function checkMergers(counts) {
+            const MA_THRESHOLD = 60;
+            FACTIONS.forEach(target => {
+                if (!target.active) return;
+                // セルがゼロになった派閥は自然消滅
+                if ((counts[target.id] || 0) === 0) { target.active = false; return; }
+                if ((counts[target.id] || 0) < MA_THRESHOLD) {
+                    // 最大シェアのアクティブ派閥が買収する
+                    let acquirerId = null, maxCount = 0;
+                    FACTIONS.forEach(f => {
+                        if (f.active && f.id !== target.id && (counts[f.id] || 0) > maxCount) {
+                            maxCount = counts[f.id]; acquirerId = f.id;
+                        }
+                    });
+                    if (!acquirerId) return;
+                    const acquirer = FACTIONS.find(f => f.id === acquirerId);
+                    let transferred = 0;
+                    for (let y = 0; y < GRID_SIZE; y++) {
+                        for (let x = 0; x < GRID_SIZE; x++) {
+                            if (gridState[y][x] === target.id) {
+                                gridState[y][x] = acquirerId;
+                                cells[y * GRID_SIZE + x].style.backgroundColor = acquirer.color;
+                                transferred++;
+                            }
+                        }
+                    }
+                    target.active = false;
+                    announce(`🤝 M&A: ${acquirer.name} が ${target.name} を買収 (+${transferred})`, acquirer.color, acquirer.color);
+                }
+            });
         }
 
         document.getElementById('speedSlider').addEventListener('input', (e) => {
@@ -195,6 +227,7 @@
             exhaustionPhase = false;
             doomCounter = 0.00001;
             FACTIONS.forEach(f => {
+                f.active = true;
                 let x = Math.floor(Math.random()*GRID_SIZE), y = Math.floor(Math.random()*GRID_SIZE);
                 gridState[y][x] = f.id; cells[y * GRID_SIZE + x].style.backgroundColor = f.color;
             });
@@ -267,9 +300,10 @@
                     }
                 }
             } else if (type === 'singularity') {
-                // 自動発火時はRD派閥のみが突破できる（大企業はリスク回避）
-                const candidates = isManual ? FACTIONS : FACTIONS.filter(f => f.state === "RD");
-                const pool = candidates.length > 0 ? candidates : FACTIONS;
+                // 自動発火時はアクティブなRD派閥のみが突破できる（大企業はリスク回避）
+                const activeFactions = FACTIONS.filter(f => f.active !== false);
+                const candidates = isManual ? activeFactions : activeFactions.filter(f => f.state === "RD");
+                const pool = candidates.length > 0 ? candidates : activeFactions;
                 const f = pool[Math.floor(Math.random() * pool.length)];
                 announce(isManual ? `💡 介入: ${f.name}が覚醒！` : `📡 特異事象: ${f.name}のブレイクスルー！`, f.color, "#fff");
                 const cx = Math.floor(Math.random() * GRID_SIZE); const cy = Math.floor(Math.random() * GRID_SIZE);
@@ -313,6 +347,7 @@
                 }
             }
             updateLegend(counts);
+            checkMergers(counts);
             if (checkVictory(counts)) return;
 
             const occupancyRate = occupied.length / (GRID_SIZE * GRID_SIZE);
@@ -384,6 +419,7 @@
                 if(occupied.length === 0) return;
                 const src = occupied[Math.floor(Math.random()*occupied.length)];
                 const f = FACTIONS.find(fac => fac.id === src.id);
+                if (!f || !f.active) continue;
                 
                 checkStateShift(f, counts[f.id]);
 
