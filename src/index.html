@@ -77,7 +77,7 @@
 
     <div id="legend"></div>
     <div id="cards-panel">
-        <div class="card" id="card-anti" onclick="useCard('anti')">📜 反トラスト法</div>
+        <div class="card" id="card-meteor" onclick="activateMeteor()">☄️ メテオフォール</div>
         <div class="card" id="card-singularity" onclick="useCard('singularity')">💡 特異点到達</div>
         <div class="card" id="card-ipo" onclick="useCard('ipo')">💰 強制IPO</div>
     </div>
@@ -104,6 +104,9 @@
         let doomCounter = 0.00001;
         let tickCount = 0;
         let exhaustionPhase = false;
+        let meteorPending = false;
+        let singularityFactionId = null;
+        let singularityEndTick = 0;
 
         const FACTIONS = [
             { id: 1, name: "Goo〇le", color: "#EA4335", state: "RD" }, 
@@ -159,7 +162,7 @@
             legend.innerHTML = FACTIONS.map(f => `
                 <div class="legend-item" style="${f.active === false ? 'opacity:0.35' : ''}">
                     <div class="dot" style="background:${f.color};${f.active === false ? 'filter:grayscale(1)' : ''}"></div>
-                    <span>${f.active === false ? '🤝 ' : ''}${f.name} [${f.state}] : ${counts[f.id] || 0}</span>
+                    <span>${f.active === false ? '🤝 ' : f.id === singularityFactionId ? '🌌 ' : ''}${f.name} [${f.state}] : ${counts[f.id] || 0}</span>
                 </div>
             `).join('');
             return counts;
@@ -232,6 +235,9 @@
             tickCount = 0;
             exhaustionPhase = false;
             doomCounter = 0.00001;
+            meteorPending = false;
+            singularityFactionId = null;
+            singularityEndTick = 0;
             FACTIONS.forEach(f => {
                 f.active = true;
                 let x = Math.floor(Math.random()*GRID_SIZE), y = Math.floor(Math.random()*GRID_SIZE);
@@ -259,6 +265,36 @@
         function useCard(type) {
             document.getElementById(`card-${type}`).classList.add('used');
             executeAnomaly(type, true);
+        }
+
+        function activateMeteor() {
+            const card = document.getElementById('card-meteor');
+            if (card.classList.contains('used') || meteorPending) return;
+            meteorPending = true;
+            announce('☄️ 着弾点をタップ — 自己責任', '#f90', '#f90');
+            stage.style.cursor = 'crosshair';
+            stage.addEventListener('click', onMeteorTarget, { once: true });
+        }
+
+        function onMeteorTarget(e) {
+            meteorPending = false;
+            stage.style.cursor = '';
+            document.getElementById('card-meteor').classList.add('used');
+            const rect = stage.getBoundingClientRect();
+            const cx = Math.min(GRID_SIZE - 1, Math.floor((e.clientX - rect.left) / rect.width * GRID_SIZE));
+            const cy = Math.min(GRID_SIZE - 1, Math.floor((e.clientY - rect.top) / rect.height * GRID_SIZE));
+            const RADIUS = 8;
+            let destroyed = 0;
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    if (Math.sqrt((x - cx) ** 2 + (y - cy) ** 2) <= RADIUS && Math.random() < 0.75) {
+                        gridState[y][x] = 0;
+                        cells[y * GRID_SIZE + x].style.backgroundColor = '';
+                        destroyed++;
+                    }
+                }
+            }
+            announce(`☄️ メテオフォール！(${destroyed}セル消滅)`, '#f90', '#f00');
         }
 
         function checkStateShift(faction, count) {
@@ -306,16 +342,26 @@
                     }
                 }
             } else if (type === 'singularity') {
-                // 自動発火時はアクティブなRD派閥のみが突破できる（大企業はリスク回避）
                 const activeFactions = FACTIONS.filter(f => f.active !== false);
-                const candidates = isManual ? activeFactions : activeFactions.filter(f => f.state === "RD");
-                const pool = candidates.length > 0 ? candidates : activeFactions;
-                const f = pool[Math.floor(Math.random() * pool.length)];
-                announce(isManual ? `💡 介入: ${f.name}が覚醒！` : `📡 特異事象: ${f.name}のブレイクスルー！`, f.color, "#fff");
-                const cx = Math.floor(Math.random() * GRID_SIZE); const cy = Math.floor(Math.random() * GRID_SIZE);
-                for(let i=-6; i<=6; i++) {
-                    if(cx+i>=0 && cx+i<GRID_SIZE) { gridState[cy][cx+i] = f.id; cells[cy*GRID_SIZE + (cx+i)].style.backgroundColor = f.color; }
-                    if(cy+i>=0 && cy+i<GRID_SIZE) { gridState[cy+i][cx] = f.id; cells[(cy+i)*GRID_SIZE + cx].style.backgroundColor = f.color; }
+                if (isManual) {
+                    // 手動発動: 首位派閥が特異点モードへ、残全派閥がAI安全連合を結成
+                    const leader = activeFactions.slice().sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0))[0];
+                    if (!leader) return;
+                    singularityFactionId = leader.id;
+                    singularityEndTick = tickCount + 1000;
+                    const coalitionNames = activeFactions.filter(f => f.id !== leader.id).map(f => f.name).join('・');
+                    announce(`🌌 特異点到達: ${leader.name} が超知性へ！\nAI安全連合結成: ${coalitionNames}`, leader.color, leader.color);
+                } else {
+                    // 自動発火: アクティブなRD派閥が十字展開ブレイクスルー
+                    const candidates = activeFactions.filter(f => f.state === "RD");
+                    const pool = candidates.length > 0 ? candidates : activeFactions;
+                    const f = pool[Math.floor(Math.random() * pool.length)];
+                    announce(`📡 特異事象: ${f.name}のブレイクスルー！`, f.color, "#fff");
+                    const cx = Math.floor(Math.random() * GRID_SIZE); const cy = Math.floor(Math.random() * GRID_SIZE);
+                    for(let i=-6; i<=6; i++) {
+                        if(cx+i>=0 && cx+i<GRID_SIZE) { gridState[cy][cx+i] = f.id; cells[cy*GRID_SIZE + (cx+i)].style.backgroundColor = f.color; }
+                        if(cy+i>=0 && cy+i<GRID_SIZE) { gridState[cy+i][cx] = f.id; cells[(cy+i)*GRID_SIZE + cx].style.backgroundColor = f.color; }
+                    }
                 }
             } else if (type === 'crash') {
                 announce(isManual ? "⚡ 介入: 市場崩壊！" : "💥 特異事象: 局地的市場崩壊！", "#fff", "#f00");
@@ -418,6 +464,39 @@
                             cells[ny * GRID_SIZE + nx].style.backgroundColor = leaderFaction.color;
                         }
                     }
+                }
+            }
+
+            // 特異点モード: 対象派閥5倍拡張 + AI安全連合が集中攻撃
+            if (singularityFactionId) {
+                const sf = FACTIONS.find(f => f.id === singularityFactionId && f.active !== false);
+                if (!sf || tickCount >= singularityEndTick) {
+                    if (sf) announce(`🌌 特異点モード終了: ${sf.name}`, sf.color, sf.color);
+                    singularityFactionId = null;
+                } else {
+                    // 5倍拡張（通常のchaos分に加え4倍ボーナス）
+                    const sfCells = occupied.filter(c => c.id === singularityFactionId);
+                    for (let b = 0; b < chaos * 4; b++) {
+                        const src = sfCells[Math.floor(Math.random() * sfCells.length)];
+                        if (!src) break;
+                        const nx = src.x + (Math.random() < 0.5 ? (Math.random() < 0.5 ? 1 : -1) : 0);
+                        const ny = src.y + (Math.random() < 0.5 ? (Math.random() < 0.5 ? 1 : -1) : 0);
+                        if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+                            if (gridState[ny][nx] !== sf.id && gridState[ny][nx] !== 0) spawnSpark(nx, ny);
+                            gridState[ny][nx] = sf.id;
+                            cells[ny * GRID_SIZE + nx].style.backgroundColor = sf.color;
+                        }
+                    }
+                    // AI安全連合: 他全派閥が特異点派閥のセルを優先攻撃（各派閥2セル/tick）
+                    const coalition = FACTIONS.filter(f => f.active !== false && f.id !== singularityFactionId);
+                    coalition.forEach(ally => {
+                        for (let c = 0; c < 2; c++) {
+                            if (sfCells.length === 0) break;
+                            const target = sfCells[Math.floor(Math.random() * sfCells.length)];
+                            gridState[target.y][target.x] = ally.id;
+                            cells[target.y * GRID_SIZE + target.x].style.backgroundColor = ally.color;
+                        }
+                    });
                 }
             }
 
