@@ -101,7 +101,7 @@
         let gameInterval;
         let currentSpeed = 1;
         let maxSpeedReached = 1;
-        let doomCounter = 0.0001; 
+        let doomCounter = 0.00001; 
 
         const FACTIONS = [
             { id: 1, name: "Goo〇le", color: "#EA4335", state: "RD" }, 
@@ -295,16 +295,12 @@
 
             const occupancyRate = occupied.length / (GRID_SIZE * GRID_SIZE);
 
-            doomCounter += 0.00002 * currentSpeed;
+            doomCounter += 0.000002 * currentSpeed * (chaos / 5);
             if (Math.random() < doomCounter) {
                 let events = ['anti', 'singularity', 'singularity'];
-                
-                if (occupancyRate < 0.9) {
-                    events.push('crash'); 
-                }
-                
+                if (occupancyRate < 0.9) { events.push('crash'); }
                 executeAnomaly(events[Math.floor(Math.random() * events.length)], false);
-                doomCounter = 0.0001; 
+                doomCounter = 0.00001; 
             }
 
             for(let i=0; i < chaos; i++) {
