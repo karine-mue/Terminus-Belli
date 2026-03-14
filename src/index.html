@@ -167,12 +167,16 @@
 
         function checkMergers(counts) {
             const MA_THRESHOLD = 60;
+            // 序盤猶予: マップが30%埋まるまでM&Aなし（開始直後の連鎖買収を防ぐ）
+            const occupied = Object.values(counts).reduce((a, b) => a + b, 0);
+            if (occupied < GRID_SIZE * GRID_SIZE * 0.3) return;
+
             FACTIONS.forEach(target => {
                 if (!target.active) return;
                 // セルがゼロになった派閥は自然消滅
                 if ((counts[target.id] || 0) === 0) { target.active = false; return; }
                 if ((counts[target.id] || 0) < MA_THRESHOLD) {
-                    // 最大シェアのアクティブ派閥が買収する
+                    // 最大シェアのアクティブ派閥が買収 (買収側が3倍以上でないと成立しない)
                     let acquirerId = null, maxCount = 0;
                     FACTIONS.forEach(f => {
                         if (f.active && f.id !== target.id && (counts[f.id] || 0) > maxCount) {
@@ -180,6 +184,8 @@
                         }
                     });
                     if (!acquirerId) return;
+                    // 規模差チェック: 買収側が被買収側の3倍未満なら独禁法リスクで見送り
+                    if (maxCount < (counts[target.id] || 0) * 3) return;
                     const acquirer = FACTIONS.find(f => f.id === acquirerId);
                     let transferred = 0;
                     for (let y = 0; y < GRID_SIZE; y++) {
