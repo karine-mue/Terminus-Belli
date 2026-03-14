@@ -108,7 +108,7 @@
             { id: 2, name: "Micr〇soft", color: "#00A4EF", state: "B2G" }, 
             { id: 3, name: "Ope〇AI", color: "#10a37f", state: "B2C" }, 
             { id: 4, name: "Met〇", color: "#1877F2", state: "B2C" }, 
-            { id: 7, name: "Qw〇n", color: "#8E44AD", state: "RD" }, 
+            { id: 7, name: "Alibab〇", color: "#8E44AD", state: "RD" }, 
             { id: 8, name: "Anthr〇pic", color: "#D48359", state: "RD" } 
         ];
 
@@ -259,7 +259,6 @@
             } else if (type === 'crash') {
                 announce(isManual ? "⚡ 介入: 市場崩壊！" : "💥 特異事象: 局地的市場崩壊！", "#fff", "#f00");
                 for(let i=0; i<GRID_SIZE*GRID_SIZE; i++) {
-                    // 消滅率を25%から10%へ下方修正（収束阻害の防止）
                     if(Math.random() < 0.10) {
                         gridState[Math.floor(i/GRID_SIZE)][i%GRID_SIZE] = 0;
                         cells[i].style.backgroundColor = '';
@@ -298,10 +297,8 @@
 
             doomCounter += 0.00002 * currentSpeed;
             if (Math.random() < doomCounter) {
-                // 特異点到達（拡大）の比重を上げ、収束を促進
                 let events = ['anti', 'singularity', 'singularity'];
                 
-                // 占有率が90%を超えた場合、市場崩壊は発生しない（Too Big To Fail）
                 if (occupancyRate < 0.9) {
                     events.push('crash'); 
                 }
