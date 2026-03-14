@@ -82,6 +82,28 @@
 
         #zoom-hint { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #444; pointer-events: none; z-index: 50; animation: hintFade 4s 3s forwards; opacity: 1; }
         @keyframes hintFade { to { opacity: 0; } }
+
+        #manual-btn { width: 100%; padding: 8px; background: #111; color: #666; border: 1px solid #333; border-radius: 6px; cursor: pointer; margin-top: 4px; font-size: 12px; }
+        #manual-btn:hover { background: #1a1a1a; color: #aaa; }
+
+        #manual-modal {
+            display: none; position: fixed; inset: 0; z-index: 500;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(6px);
+            overflow-y: auto; padding: 20px; box-sizing: border-box;
+        }
+        #manual-modal.open { display: block; }
+        #manual-inner {
+            max-width: 480px; margin: 0 auto; background: #0d0d0d;
+            border: 1px solid #333; border-radius: 12px; padding: 20px;
+            font-size: 12px; line-height: 1.7; color: #ccc;
+        }
+        #manual-inner h2 { color: #eee; font-size: 14px; margin: 18px 0 6px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+        #manual-inner h3 { color: #bbb; font-size: 12px; margin: 14px 0 4px; }
+        #manual-inner table { width: 100%; border-collapse: collapse; margin: 6px 0; }
+        #manual-inner td, #manual-inner th { padding: 4px 6px; border: 1px solid #2a2a2a; font-size: 11px; }
+        #manual-inner th { background: #1a1a1a; color: #888; }
+        #manual-inner .card-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; margin-right: 4px; }
+        #manual-close { width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 16px; font-size: 13px; }
     </style>
 </head>
 <body>
@@ -102,7 +124,73 @@
         <div class="control-group"><label><span>時空律 (Time): <span id="speedVal">x1</span></span><span style="color:#600; font-weight:bold;">※不可逆</span></label><input type="range" id="speedSlider" min="1" max="50" value="1"></div>
         <div id="status" style="font-size:10px; color:#888; text-align:center;">Terminal Standing by...</div>
         <button class="reset-btn" id="resetBtn" onclick="resetGame()">↺ もう一回</button>
+        <button id="manual-btn" onclick="document.getElementById('manual-modal').classList.add('open'); document.getElementById('hud-panel').classList.remove('open');">? 遊び方</button>
         <div id="log-area"></div>
+    </div>
+
+    <div id="manual-modal">
+        <div id="manual-inner">
+            <h2>⚔️ Terminus-Belli — 遊び方</h2>
+            <p>6つのAI勢力が計算資源（マップ）を奪い合う領土シミュレーター。<br>いずれかがマップの <strong>80%</strong> を占領した時点で終戦。</p>
+
+            <h2>基本操作</h2>
+            <table>
+                <tr><th>操作</th><th>内容</th></tr>
+                <tr><td><strong>紛争を開始</strong></td><td>ゲームスタート。各勢力が1セルからスポーン</td></tr>
+                <tr><td><strong>秩序⇔混沌</strong></td><td>毎TickのAI行動量（1〜30）。高いほど激しい</td></tr>
+                <tr><td><strong>時空律</strong></td><td>速度 x1〜x50。<em>一度上げると戻せない（不可逆）</em></td></tr>
+                <tr><td><strong>↺ もう一回</strong></td><td>全状態をリセットして最初から</td></tr>
+            </table>
+
+            <h2>スマホ操作</h2>
+            <table>
+                <tr><th>操作</th><th>内容</th></tr>
+                <tr><td>2本指ピンチ</td><td>ズームイン/アウト（最大5倍）</td></tr>
+                <tr><td>ズーム中に1本指ドラッグ</td><td>マップをスクロール</td></tr>
+                <tr><td>ダブルタップ</td><td>ズームをリセット</td></tr>
+            </table>
+
+            <h2>画面の見方</h2>
+            <table>
+                <tr><th>要素</th><th>内容</th></tr>
+                <tr><td>レジェンド（左上）</td><td>勢力ごとのセル数と占有率%。🤝=買収済み、🌌=特異点</td></tr>
+                <tr><td>領土バー（最下部）</td><td>全勢力のシェアをカラーで一目表示。黒=未占領</td></tr>
+            </table>
+
+            <h2>勢力ステートと弱点</h2>
+            <p>シェアに応じてステートが変化し、<strong>弱点（リスク）</strong>も変わる。</p>
+            <table>
+                <tr><th>ステート</th><th>移行条件</th><th>弱点</th></tr>
+                <tr><td>RD（研究開発）</td><td>初期〜15%</td><td>資金切れで消滅リスク</td></tr>
+                <tr><td>B2G（政府向け）</td><td>15%超</td><td>🔥 炎上リスク 3%/tick</td></tr>
+                <tr><td>B2C（大衆向け）</td><td>35%超</td><td>⚖️ 訴訟リスク 2%/tick</td></tr>
+            </table>
+            <p style="font-size:10px;color:#666;">M&amp;A：60セル未満かつ最大勢力が3倍以上になった勢力は買収（セル継承）される。</p>
+
+            <h2>カード（各1回使い切り）</h2>
+
+            <h3>☄️ メテオフォール</h3>
+            <p>タップした場所に隕石。半径8セル・75%破壊。<br>
+            <strong>おすすめ:</strong> 1位が独走して面白くなくなったとき。接戦の境界に落とすと均衡を崩せる。</p>
+
+            <h3>💡 特異点到達</h3>
+            <p>首位勢力が1000Tick間、拡張ボーナス<strong>5倍</strong>の「特異点モード」に。同時に残り全勢力が連合を組んで抵抗。<br>
+            <strong>おすすめ:</strong> 2〜3勢力が拮抗している中盤。接戦なら連合が強く止められる可能性もある。</p>
+
+            <h3>💰 強制IPO</h3>
+            <p>2位勢力に資本注入。1位との差を最大50セル縮める。飽和マップでは効果薄め。<br>
+            <strong>おすすめ:</strong> 1位が逃げ切りはじめた中盤。「いつ切るか」の駆け引きが肝。</p>
+
+            <h2>自動イベント</h2>
+            <table>
+                <tr><th>イベント</th><th>効果</th></tr>
+                <tr><td>⚖️ 反トラスト法</td><td>首位勢力のセルを削除（シェアが大きいほど削除率は小さい）</td></tr>
+                <tr><td>📡 特異事象</td><td>RD段階の勢力が十字展開でブレイクスルー</td></tr>
+                <tr><td>💥 局地的市場崩壊</td><td>マップの10%がランダム消滅（終盤は封印）</td></tr>
+            </table>
+
+            <button id="manual-close" onclick="document.getElementById('manual-modal').classList.remove('open'); document.getElementById('hud-panel').classList.add('open');">← 設定に戻る</button>
+        </div>
     </div>
 
     <div id="stage"></div>
