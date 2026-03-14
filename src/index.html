@@ -223,11 +223,14 @@
         }
 
         function checkStateShift(faction, count) {
-            if (faction.state === "RD" && count > 100) {
+            const totalCells = GRID_SIZE * GRID_SIZE;
+            const share = count / totalCells;
+            // 相対シェアで判定: 大半の派閥はRDのまま留まる
+            if (faction.state === "RD" && share > 0.15) {      // 15%超: 240セル相当
                 faction.state = "B2G";
                 announce(`【転換】${faction.name} が制度向け(B2G)へ参入！`, faction.color, "#fff");
             }
-            else if (faction.state === "B2G" && count > 250) {
+            else if (faction.state === "B2G" && share > 0.35) { // 35%超: 560セル相当
                 faction.state = "B2C";
                 announce(`【転換】${faction.name} が大衆向け(B2C)へ開放！`, faction.color, "#fff");
             }
