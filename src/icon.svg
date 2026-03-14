@@ -1,14 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-    <rect width="512" height="512" fill="#0d0d0d" />
-    
-    <rect x="56" y="156" width="400" height="200" rx="100" fill="none" stroke="#D48359" stroke-width="24" opacity="0.4" filter="blur(12px)"/>
-    
+    <defs>
+        <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="10" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+    </defs>
+
+    <rect width="512" height="512" fill="#0d0d0d"/>
+
+    <rect x="56" y="156" width="400" height="200" rx="100" fill="none" stroke="#D48359" stroke-width="24" opacity="0.35" filter="url(#glow)"/>
+
     <rect x="56" y="156" width="400" height="200" rx="100" fill="#1a1a1a" stroke="#D48359" stroke-width="12"/>
-    
+
     <path d="M 156 156 L 156 356 M 256 156 L 256 356 M 356 156 L 356 356" stroke="#333" stroke-width="4"/>
     <path d="M 56 256 L 456 256" stroke="#333" stroke-width="4"/>
-    
+
     <path d="M 156 156 H 406 A 100 100 0 0 1 456 256 A 100 100 0 0 1 406 356 H 156 Z" fill="#D48359" opacity="0.9"/>
     <path d="M 156 156 L 56 256 L 156 356 Z" fill="#D48359" opacity="0.6"/>
 
-    <circle cx="106" cy="206" r="12" fill="#4285F4"/> <circle cx="106" cy="306" r="12" fill="#10a37f"/> <circle cx="406" cy="256" r="16" fill="#8E44AD"/> </svg>
+    <circle cx="106" cy="206" r="12" fill="#4285F4"/>
+    <circle cx="106" cy="306" r="12" fill="#10a37f"/>
+    <circle cx="406" cy="256" r="16" fill="#8E44AD"/>
+</svg>
