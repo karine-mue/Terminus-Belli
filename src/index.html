@@ -124,6 +124,9 @@
 
         #manual-btn { width: 100%; padding: 8px; background: #111; color: #666; border: 1px solid #333; border-radius: 6px; cursor: pointer; margin-top: 4px; font-size: 12px; }
         #manual-btn:hover { background: #1a1a1a; color: #aaa; }
+        #lang-btn { padding: 8px 10px; background: #111; color: #555; border: 1px solid #333; border-radius: 6px; cursor: pointer; margin-top: 4px; font-size: 12px; font-weight: bold; white-space: nowrap; }
+        #lang-btn:hover { background: #1a1a1a; color: #aaa; }
+        .hud-row { display: flex; gap: 6px; }
 
         #manual-modal {
             display: none; position: fixed; inset: 0; z-index: 500;
@@ -159,77 +162,21 @@
     <div id="hud-toggle">⚙️</div>
     <div id="hud-panel" class="open">
         <div class="control-group"><button class="conflict-btn" id="startBtn">紛争を開始</button></div>
-        <div class="control-group"><label><span>秩序 (Order)</span><span>混沌 (Chaos)</span></label><input type="range" id="chaosSlider" min="1" max="30" value="2"></div>
-        <div class="control-group"><label><span>時空律 (Time): <span id="speedVal">x1</span></span><span style="color:#600; font-weight:bold;">※不可逆</span></label><input type="range" id="speedSlider" min="1" max="50" value="1"></div>
+        <div class="control-group"><label><span id="orderLabel">秩序 (Order)</span><span id="chaosLabel">混沌 (Chaos)</span></label><input type="range" id="chaosSlider" min="1" max="30" value="2"></div>
+        <div class="control-group"><label><span><span id="timeLabel">時空律 (Time): </span><span id="speedVal">x1</span></span><span id="irreversibleLabel" style="color:#600; font-weight:bold;">※不可逆</span></label><input type="range" id="speedSlider" min="1" max="50" value="1"></div>
         <div id="status" style="font-size:10px; color:#888; text-align:center;">Terminal Standing by...</div>
         <button class="reset-btn" id="resetBtn" onclick="resetGame()">↺ もう一回</button>
-        <button id="manual-btn" onclick="document.getElementById('manual-modal').classList.add('open'); document.getElementById('hud-panel').classList.remove('open');">? 遊び方</button>
+        <div class="hud-row">
+            <button id="manual-btn" style="flex:1" onclick="document.getElementById('manual-modal').classList.add('open'); document.getElementById('hud-panel').classList.remove('open');">? 遊び方</button>
+            <button id="lang-btn" onclick="setLang(currentLang==='ja'?'en':'ja')">EN</button>
+        </div>
         <div id="log-area"></div>
     </div>
 
     <div id="manual-modal">
-        <div id="manual-inner">
-            <h2>⚔️ Terminus-Belli — 遊び方</h2>
-            <p>6つのAI勢力が計算資源（マップ）を奪い合う領土シミュレーター。<br>いずれかがマップの <strong>80%</strong> を占領した時点で終戦。</p>
-
-            <h2>基本操作</h2>
-            <table>
-                <tr><th>操作</th><th>内容</th></tr>
-                <tr><td><strong>紛争を開始</strong></td><td>ゲームスタート。各勢力が1セルからスポーン</td></tr>
-                <tr><td><strong>秩序⇔混沌</strong></td><td>毎TickのAI行動量（1〜30）。高いほど激しい</td></tr>
-                <tr><td><strong>時空律</strong></td><td>速度 x1〜x50。<em>一度上げると戻せない（不可逆）</em></td></tr>
-                <tr><td><strong>↺ もう一回</strong></td><td>全状態をリセットして最初から</td></tr>
-            </table>
-
-            <h2>スマホ操作</h2>
-            <table>
-                <tr><th>操作</th><th>内容</th></tr>
-                <tr><td>2本指ピンチ</td><td>ズームイン/アウト（最大5倍）</td></tr>
-                <tr><td>ズーム中に1本指ドラッグ</td><td>マップをスクロール</td></tr>
-                <tr><td>ダブルタップ</td><td>ズームをリセット</td></tr>
-            </table>
-
-            <h2>画面の見方</h2>
-            <table>
-                <tr><th>要素</th><th>内容</th></tr>
-                <tr><td>レジェンド（左上）</td><td>勢力ごとのセル数と占有率%。🤝=買収済み、🌌=特異点</td></tr>
-                <tr><td>領土バー（最下部）</td><td>全勢力のシェアをカラーで一目表示。黒=未占領</td></tr>
-            </table>
-
-            <h2>勢力ステートと弱点</h2>
-            <p>シェアに応じてステートが変化し、<strong>弱点（リスク）</strong>も変わる。</p>
-            <table>
-                <tr><th>ステート</th><th>移行条件</th><th>弱点</th></tr>
-                <tr><td>RD（研究開発）</td><td>初期〜15%</td><td>資金切れで消滅リスク</td></tr>
-                <tr><td>B2G（政府向け）</td><td>15%超</td><td>🔥 炎上リスク 3%/tick</td></tr>
-                <tr><td>B2C（大衆向け）</td><td>35%超</td><td>⚖️ 訴訟リスク 2%/tick</td></tr>
-            </table>
-            <p style="font-size:10px;color:#666;">M&amp;A：60セル未満かつ最大勢力が3倍以上になった勢力は買収（セル継承）される。</p>
-
-            <h2>カード（各1回使い切り）</h2>
-
-            <h3>☄️ メテオフォール</h3>
-            <p>タップした場所に隕石。半径8セル・75%破壊。<br>
-            <strong>おすすめ:</strong> 1位が独走して面白くなくなったとき。接戦の境界に落とすと均衡を崩せる。</p>
-
-            <h3>💡 特異点到達</h3>
-            <p>首位勢力が1000Tick間、拡張ボーナス<strong>5倍</strong>の「特異点モード」に。同時に残り全勢力が連合を組んで抵抗。<br>
-            <strong>おすすめ:</strong> 2〜3勢力が拮抗している中盤。接戦なら連合が強く止められる可能性もある。</p>
-
-            <h3>💰 強制IPO</h3>
-            <p>2位勢力に資本注入。1位との差を最大50セル縮める。飽和マップでは効果薄め。<br>
-            <strong>おすすめ:</strong> 1位が逃げ切りはじめた中盤。「いつ切るか」の駆け引きが肝。</p>
-
-            <h2>自動イベント</h2>
-            <table>
-                <tr><th>イベント</th><th>効果</th></tr>
-                <tr><td>⚖️ 反トラスト法</td><td>首位勢力のセルを削除（シェアが大きいほど削除率は小さい）</td></tr>
-                <tr><td>📡 特異事象</td><td>RD段階の勢力が十字展開でブレイクスルー</td></tr>
-                <tr><td>💥 局地的市場崩壊</td><td>マップの10%がランダム消滅（終盤は封印）</td></tr>
-            </table>
-
-            <button id="manual-close" onclick="document.getElementById('manual-modal').classList.remove('open'); document.getElementById('hud-panel').classList.add('open');">← 設定に戻る</button>
-        </div>
+        <div id="manual-inner"><!-- setLang()で挿入 --></div>
+        <button id="manual-close" style="display:block;width:calc(100% - 40px);max-width:480px;margin:12px auto 20px;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:13px;"
+            onclick="document.getElementById('manual-modal').classList.remove('open'); document.getElementById('hud-panel').classList.add('open');">← 設定に戻る</button>
     </div>
 
     <div id="stage"></div>
@@ -237,7 +184,155 @@
     <div id="zoom-hint">👆 2本指でズーム・スクロール</div>
 
     <script>
-        const GRID_SIZE = 40; 
+        const GRID_SIZE = 40;
+        let currentLang = 'ja';
+
+        const STRINGS = {
+            ja: {
+                startBtn: '紛争を開始', orderLabel: '秩序 (Order)', chaosLabel: '混沌 (Chaos)',
+                timeLabel: '時空律 (Time): ', irreversible: '※不可逆',
+                statusIdle: 'Terminal Standing by...', playAgain: '↺ もう一回', howToPlay: '? 遊び方',
+                cardMeteor: '☄️ メテオフォール', cardSingularity: '💡 特異点到達', cardIPO: '💰 強制IPO',
+                unclaimed: '未占領', zoomHint: '👆 2本指でズーム・スクロール', manualClose: '← 設定に戻る',
+                meteorTarget: '☄️ 着弾点をタップ — 自己責任',
+                meteorImpact: n => `☄️ メテオフォール！(${n}セル消滅)`,
+                stateB2G: n => `【転換】${n} が制度向け(B2G)へ参入！`,
+                stateB2C: n => `【転換】${n} が大衆向け(B2C)へ開放！`,
+                antiTrustManual: n => `📜 介入: ${n}を解体！`,
+                antiTrust: (n, p) => `⚖️ 特異事象: ${n}に司法のメス！(${p}%)`,
+                singularity: (leader, coalition) => `🌌 特異点到達: ${leader} が超知性へ！\nAI安全連合結成: ${coalition}`,
+                singularityEnd: n => `🌌 特異点モード終了: ${n}`,
+                breakthrough: n => `📡 特異事象: ${n}のブレイクスルー！`,
+                crashManual: '⚡ 介入: 市場崩壊！', crash: '💥 特異事象: 局地的市場崩壊！',
+                ipo: (n, v) => `💰 強制IPO: ${n} に資本注入！(+${v})`,
+                victory: n => `【終戦】${n} が世界を支配しました。`,
+                deadlock: '⚔️ 膠着状態 — 市場崩壊は停止',
+                acquisition: (a, t, v) => `🤝 M&A: ${a} が ${t} を買収 (+${v})`,
+                conflictStart: 'System: 紛争開始。特異点を開放。',
+                resetDone: 'System: リセット完了。紛争を開始してください。',
+                manualHTML: `<h2>⚔️ Terminus-Belli — 遊び方</h2>
+<p>6つのAI勢力が計算資源（マップ）を奪い合う領土シミュレーター。<br>いずれかがマップの <strong>80%</strong> を占領した時点で終戦。</p>
+<h2>基本操作</h2>
+<table><tr><th>操作</th><th>内容</th></tr>
+<tr><td><strong>紛争を開始</strong></td><td>ゲームスタート。各勢力が1セルからスポーン</td></tr>
+<tr><td><strong>秩序⇔混沌</strong></td><td>毎TickのAI行動量（1〜30）。高いほど激しい</td></tr>
+<tr><td><strong>時空律</strong></td><td>速度 x1〜x50。<em>一度上げると戻せない（不可逆）</em></td></tr>
+<tr><td><strong>↺ もう一回</strong></td><td>全状態をリセットして最初から</td></tr></table>
+<h2>スマホ操作</h2>
+<table><tr><th>操作</th><th>内容</th></tr>
+<tr><td>2本指ピンチ</td><td>ズームイン/アウト（最大5倍）</td></tr>
+<tr><td>ズーム中に1本指ドラッグ</td><td>マップをスクロール</td></tr>
+<tr><td>ダブルタップ</td><td>ズームをリセット</td></tr></table>
+<h2>画面の見方</h2>
+<table><tr><th>要素</th><th>内容</th></tr>
+<tr><td>レジェンド（左上）</td><td>勢力ごとのセル数と占有率%。🤝=買収済み、🌌=特異点</td></tr>
+<tr><td>領土バー（最下部）</td><td>全勢力のシェアをカラーで一目表示。黒=未占領</td></tr></table>
+<h2>勢力ステートと弱点</h2>
+<p>シェアに応じてステートが変化し、<strong>弱点（リスク）</strong>も変わる。</p>
+<table><tr><th>ステート</th><th>移行条件</th><th>弱点</th></tr>
+<tr><td>RD（研究開発）</td><td>初期〜15%</td><td>資金切れで消滅リスク</td></tr>
+<tr><td>B2G（政府向け）</td><td>15%超</td><td>🔥 炎上リスク 3%/tick</td></tr>
+<tr><td>B2C（大衆向け）</td><td>35%超</td><td>⚖️ 訴訟リスク 2%/tick</td></tr></table>
+<p style="font-size:10px;color:#666;">M&amp;A：60セル未満かつ最大勢力が3倍以上になった勢力は買収（セル継承）される。</p>
+<h2>カード（各1回使い切り）</h2>
+<h3>☄️ メテオフォール</h3>
+<p>タップした場所に隕石。半径8セル・75%破壊。<br><strong>おすすめ:</strong> 1位が独走して面白くなくなったとき。接戦の境界に落とすと均衡を崩せる。</p>
+<h3>💡 特異点到達</h3>
+<p>首位勢力が1000Tick間、拡張ボーナス<strong>5倍</strong>の「特異点モード」に。同時に残り全勢力が連合を組んで抵抗。<br><strong>おすすめ:</strong> 2〜3勢力が拮抗している中盤。接戦なら連合が強く止められる可能性もある。</p>
+<h3>💰 強制IPO</h3>
+<p>2位勢力に資本注入。1位との差を最大50セル縮める。飽和マップでは効果薄め。<br><strong>おすすめ:</strong> 1位が逃げ切りはじめた中盤。「いつ切るか」の駆け引きが肝。</p>
+<h2>自動イベント</h2>
+<table><tr><th>イベント</th><th>効果</th></tr>
+<tr><td>⚖️ 反トラスト法</td><td>首位勢力のセルを削除（シェアが大きいほど削除率は小さい）</td></tr>
+<tr><td>📡 特異事象</td><td>RD段階の勢力が十字展開でブレイクスルー</td></tr>
+<tr><td>💥 局地的市場崩壊</td><td>マップの10%がランダム消滅（終盤は封印）</td></tr></table>`
+            },
+            en: {
+                startBtn: 'Start Conflict', orderLabel: 'Order', chaosLabel: 'Chaos',
+                timeLabel: 'Time Rate: ', irreversible: '※Irreversible',
+                statusIdle: 'Terminal Standing by...', playAgain: '↺ Play Again', howToPlay: '? How to Play',
+                cardMeteor: '☄️ Meteor Fall', cardSingularity: '💡 Singularity', cardIPO: '💰 Forced IPO',
+                unclaimed: 'Unclaimed', zoomHint: '👆 Pinch to zoom & pan', manualClose: '← Back to Settings',
+                meteorTarget: '☄️ Tap target — at your own risk',
+                meteorImpact: n => `☄️ Meteor Fall! (${n} cells destroyed)`,
+                stateB2G: n => `[Shift] ${n} enters Gov/Enterprise (B2G)!`,
+                stateB2C: n => `[Shift] ${n} goes consumer (B2C)!`,
+                antiTrustManual: n => `📜 Intervention: Breaking up ${n}!`,
+                antiTrust: (n, p) => `⚖️ Anomaly: ${n} hit by antitrust action! (${p}%)`,
+                singularity: (leader, coalition) => `🌌 Singularity: ${leader} achieves superintelligence!\nAI Safety Coalition: ${coalition}`,
+                singularityEnd: n => `🌌 Singularity ended: ${n}`,
+                breakthrough: n => `📡 Anomaly: ${n} breakthrough!`,
+                crashManual: '⚡ Intervention: Market collapse!', crash: '💥 Anomaly: Localized market collapse!',
+                ipo: (n, v) => `💰 Forced IPO: Capital injected into ${n}! (+${v})`,
+                victory: n => `[END] ${n} dominates the compute landscape.`,
+                deadlock: '⚔️ Stalemate — market collapse suspended',
+                acquisition: (a, t, v) => `🤝 M&A: ${a} acquires ${t} (+${v})`,
+                conflictStart: 'System: Conflict initiated. Singularity unlocked.',
+                resetDone: 'System: Reset complete. Start a new conflict.',
+                manualHTML: `<h2>⚔️ Terminus-Belli — How to Play</h2>
+<p>Six AI factions battle for compute resources (the map).<br>The first faction to control <strong>80%</strong> of the map wins.</p>
+<h2>Controls</h2>
+<table><tr><th>Control</th><th>Description</th></tr>
+<tr><td><strong>Start Conflict</strong></td><td>Begins the simulation. Each faction spawns from 1 cell.</td></tr>
+<tr><td><strong>Order ⇔ Chaos</strong></td><td>AI actions per tick (1–30). Higher = more aggressive.</td></tr>
+<tr><td><strong>Time Rate</strong></td><td>Speed x1–x50. <em>Cannot be decreased once raised (irreversible).</em></td></tr>
+<tr><td><strong>↺ Play Again</strong></td><td>Reset all state and start over.</td></tr></table>
+<h2>Mobile Controls</h2>
+<table><tr><th>Gesture</th><th>Description</th></tr>
+<tr><td>2-finger pinch</td><td>Zoom in/out (up to 5×)</td></tr>
+<tr><td>1-finger drag (while zoomed)</td><td>Pan the map</td></tr>
+<tr><td>Double tap</td><td>Reset zoom</td></tr></table>
+<h2>UI Elements</h2>
+<table><tr><th>Element</th><th>Description</th></tr>
+<tr><td>Legend (top-left)</td><td>Cell counts &amp; % per faction. 🤝=acquired, 🌌=singularity</td></tr>
+<tr><td>Territory bar (bottom)</td><td>Color-coded share of the map at a glance. Black=unclaimed</td></tr></table>
+<h2>Faction States &amp; Vulnerabilities</h2>
+<p>Faction state changes based on map share, altering <strong>risk exposure</strong>.</p>
+<table><tr><th>State</th><th>Trigger</th><th>Vulnerability</th></tr>
+<tr><td>RD (Research)</td><td>Start – 15%</td><td>Funding runs out → extinction</td></tr>
+<tr><td>B2G (Gov/Enterprise)</td><td>&gt;15%</td><td>🔥 Public backlash 3%/tick</td></tr>
+<tr><td>B2C (Consumer)</td><td>&gt;35%</td><td>⚖️ Lawsuit risk 2%/tick</td></tr></table>
+<p style="font-size:10px;color:#666;">M&amp;A: A faction with fewer than 60 cells gets acquired if the leader has 3× more cells.</p>
+<h2>Cards (one use each)</h2>
+<h3>☄️ Meteor Fall</h3>
+<p>Tap anywhere to drop a meteor. Destroys ~75% of cells within radius 8.<br><strong>Best used:</strong> When the leader is running away unchallenged. Drop on contested borders to shake up the balance.</p>
+<h3>💡 Singularity</h3>
+<p>The leading faction enters <strong>5× expansion</strong> Singularity mode for 1000 ticks. All other factions form an AI Safety Coalition and focus-attack it.<br><strong>Best used:</strong> Mid-game with 2–3 factions neck and neck. If it's close, the coalition might stop them.</p>
+<h3>💰 Forced IPO</h3>
+<p>Injects capital into 2nd place, closing the gap with 1st by up to 50 cells. Less effective on a saturated map.<br><strong>Best used:</strong> Mid-to-late game when 1st is pulling ahead. Timing is everything.</p>
+<h2>Auto Events</h2>
+<table><tr><th>Event</th><th>Effect</th></tr>
+<tr><td>⚖️ Antitrust</td><td>Removes cells from the leader (bigger share = smaller % removed)</td></tr>
+<tr><td>📡 Anomaly</td><td>An RD-stage faction executes a cross-shaped breakthrough</td></tr>
+<tr><td>💥 Market Collapse</td><td>10% of cells wiped randomly (sealed in late game)</td></tr></table>`
+            }
+        };
+
+        function T(key, ...args) {
+            const s = STRINGS[currentLang][key] || STRINGS.ja[key];
+            return typeof s === 'function' ? s(...args) : s;
+        }
+
+        function setLang(lang) {
+            currentLang = lang;
+            const S = STRINGS[lang];
+            document.getElementById('startBtn').textContent = S.startBtn;
+            document.getElementById('card-meteor').textContent = S.cardMeteor;
+            document.getElementById('card-singularity').textContent = S.cardSingularity;
+            document.getElementById('card-ipo').textContent = S.cardIPO;
+            document.getElementById('resetBtn').textContent = S.playAgain;
+            document.getElementById('manual-btn').textContent = S.howToPlay;
+            document.getElementById('lang-btn').textContent = lang === 'ja' ? 'EN' : 'JA';
+            document.getElementById('orderLabel').textContent = S.orderLabel;
+            document.getElementById('chaosLabel').textContent = S.chaosLabel;
+            document.getElementById('timeLabel').textContent = S.timeLabel;
+            document.getElementById('irreversibleLabel').textContent = S.irreversible;
+            document.getElementById('zoom-hint').textContent = S.zoomHint;
+            document.getElementById('manual-close').textContent = S.manualClose;
+            document.getElementById('manual-inner').innerHTML = S.manualHTML;
+            if (!isConflict) document.getElementById('status').textContent = S.statusIdle;
+        }
+
         let isConflict = false;
         let gameInterval;
         let currentSpeed = 1;
@@ -289,6 +384,7 @@
             updateLegend({});
         }
 
+        setLang('ja');
         hudToggle.addEventListener('click', () => hudPanel.classList.toggle('open'));
 
         function applyMapTransform() {
@@ -383,7 +479,7 @@
                 </div>`;
             }).join('') + `<div class="legend-item" style="margin-top:3px;border-top:1px solid #333;padding-top:3px">
                 <div class="dot" style="background:#111;outline:1px solid #555"></div>
-                <span>未占領 : ${remaining} (${pct(remaining)}%)</span>
+                <span>${T('unclaimed')} : ${remaining} (${pct(remaining)}%)</span>
             </div>`;
 
             // 領土バー更新
@@ -428,7 +524,7 @@
                         }
                     }
                     target.active = false;
-                    announce(`🤝 M&A: ${acquirer.name} が ${target.name} を買収 (+${transferred})`, acquirer.color, acquirer.color);
+                    announce(T('acquisition', acquirer.name, target.name, transferred), acquirer.color, acquirer.color);
                 }
             });
         }
@@ -451,7 +547,7 @@
         startBtn.addEventListener('click', () => {
             if (!isConflict) {
                 isConflict = true; startBtn.disabled = true;
-                announce("System: 紛争開始。特異点を開放。", "#fff", "#f00");
+                announce(T('conflictStart'), "#fff", "#f00");
                 document.querySelectorAll('.card').forEach(c => c.style.display = 'block');
                 deploy(); restartInterval();
                 setTimeout(() => hudPanel.classList.remove('open'), 1500);
@@ -474,6 +570,7 @@
             document.querySelectorAll('.card').forEach(c => { c.classList.remove('used'); c.style.display = 'none'; });
             logArea.innerHTML = '';
             updateLegend({});
+            setLang(currentLang);
         }
 
         function deploy() {
@@ -516,7 +613,7 @@
             const card = document.getElementById('card-meteor');
             if (card.classList.contains('used') || meteorPending) return;
             meteorPending = true;
-            announce('☄️ 着弾点をタップ — 自己責任', '#f90', '#f90');
+            announce(T('meteorTarget'), '#f90', '#f90');
             stage.style.cursor = 'crosshair';
             stage.addEventListener('click', onMeteorTarget, { once: true });
         }
@@ -635,7 +732,7 @@
                 }, r * 35);
             });
 
-            setTimeout(() => announce(`☄️ メテオフォール！(${destroyed}セル消滅)`, '#f90', '#f00'), RADIUS * 35 + 80);
+            setTimeout(() => announce(T('meteorImpact', destroyed), '#f90', '#f00'), RADIUS * 35 + 80);
         }
 
         function checkStateShift(faction, count) {
@@ -644,11 +741,11 @@
             // 相対シェアで判定: 大半の派閥はRDのまま留まる
             if (faction.state === "RD" && share > 0.15) {      // 15%超: 240セル相当
                 faction.state = "B2G";
-                announce(`【転換】${faction.name} が制度向け(B2G)へ参入！`, faction.color, "#fff");
+                announce(T('stateB2G', faction.name), faction.color, "#fff");
             }
             else if (faction.state === "B2G" && share > 0.35) { // 35%超: 560セル相当
                 faction.state = "B2C";
-                announce(`【転換】${faction.name} が大衆向け(B2C)へ開放！`, faction.color, "#fff");
+                announce(T('stateB2C', faction.name), faction.color, "#fff");
             }
         }
 
@@ -674,7 +771,7 @@
                 // 削除率: シェアが大きいほど法務ノウハウで守られ傷が浅い
                 // 25%シェア→28%, 50%シェア→14%, 70%シェア→5%
                 const antiTrustRate = isManual ? 0.35 : Math.max(0.05, 0.35 - leaderShare * 0.6);
-                announce(isManual ? `📜 介入: ${targetName}を解体！` : `⚖️ 特異事象: ${targetName}に司法のメス！(${Math.round(antiTrustRate*100)}%)`, tColor, "#fff");
+                announce(isManual ? T('antiTrustManual', targetName) : T('antiTrust', targetName, Math.round(antiTrustRate*100)), tColor, "#fff");
                 for(let y=0; y<GRID_SIZE; y++) {
                     for(let x=0; x<GRID_SIZE; x++) {
                         if(gridState[y][x] === topFactionId && Math.random() < antiTrustRate) {
@@ -691,13 +788,13 @@
                     singularityFactionId = leader.id;
                     singularityEndTick = tickCount + 1000;
                     const coalitionNames = activeFactions.filter(f => f.id !== leader.id).map(f => f.name).join('・');
-                    announce(`🌌 特異点到達: ${leader.name} が超知性へ！\nAI安全連合結成: ${coalitionNames}`, leader.color, leader.color);
+                    announce(T('singularity', leader.name, coalitionNames), leader.color, leader.color);
                 } else {
                     // 自動発火: アクティブなRD派閥が十字展開ブレイクスルー
                     const candidates = activeFactions.filter(f => f.state === "RD");
                     const pool = candidates.length > 0 ? candidates : activeFactions;
                     const f = pool[Math.floor(Math.random() * pool.length)];
-                    announce(`📡 特異事象: ${f.name}のブレイクスルー！`, f.color, "#fff");
+                    announce(T('breakthrough', f.name), f.color, "#fff");
                     const cx = Math.floor(Math.random() * GRID_SIZE); const cy = Math.floor(Math.random() * GRID_SIZE);
                     for(let i=-6; i<=6; i++) {
                         if(cx+i>=0 && cx+i<GRID_SIZE) { gridState[cy][cx+i] = f.id; cells[cy*GRID_SIZE + (cx+i)].style.backgroundColor = f.color; }
@@ -705,7 +802,7 @@
                     }
                 }
             } else if (type === 'crash') {
-                announce(isManual ? "⚡ 介入: 市場崩壊！" : "💥 特異事象: 局地的市場崩壊！", "#fff", "#f00");
+                announce(isManual ? T('crashManual') : T('crash'), "#fff", "#f00");
                 for(let i=0; i<GRID_SIZE*GRID_SIZE; i++) {
                     if(Math.random() < 0.10) {
                         gridState[Math.floor(i/GRID_SIZE)][i%GRID_SIZE] = 0;
@@ -735,7 +832,7 @@
                     gridState[y][x] = second.id;
                     cells[y * GRID_SIZE + x].style.backgroundColor = second.color;
                 });
-                announce(`💰 強制IPO: ${second.name} に資本注入！(+${spots.length})`, second.color, '#ff0');
+                announce(T('ipo', second.name, spots.length), second.color, '#ff0');
             }
         }
 
@@ -744,7 +841,7 @@
             for (const id in counts) {
                 if (counts[id] > totalCells * 0.8) {
                     const winner = FACTIONS.find(f => f.id == id);
-                    announce(`【終戦】${winner.name} が世界を支配しました。`, winner.color, "#fff");
+                    announce(T('victory', winner.name), winner.color, "#fff");
                     clearInterval(gameInterval);
                     startBtn.disabled = true;
                     return true;
@@ -772,7 +869,7 @@
             // 疲弊フェーズ: 3000ティック後にCrashを封印
             if (tickCount > 3000 && !exhaustionPhase) {
                 exhaustionPhase = true;
-                announce("⚔️ 膠着状態 — 市場崩壊は停止", "#ff0", "#ff0");
+                announce(T('deadlock'), "#ff0", "#ff0");
             }
 
             // Doomカウンター: 時間経過で蓄積速度を減衰（収束に向かうほどイベントが減る）
@@ -812,7 +909,7 @@
             if (singularityFactionId) {
                 const sf = FACTIONS.find(f => f.id === singularityFactionId && f.active !== false);
                 if (!sf || tickCount >= singularityEndTick) {
-                    if (sf) announce(`🌌 特異点モード終了: ${sf.name}`, sf.color, sf.color);
+                    if (sf) announce(T('singularityEnd', sf.name), sf.color, sf.color);
                     singularityFactionId = null;
                 } else {
                     // 5倍拡張（通常のchaos分に加え4倍ボーナス）
