@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Terminus-Belli: Anomaly</title>
+    <title>Terminus-Belli: Convergence</title>
     <style>
         :root { --bg: #050505; --panel: rgba(15, 15, 15, 0.9); --accent: #900; --text: #eee; }
         body { background-color: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; overflow: hidden; height: 100dvh; position: fixed; width: 100%; }
@@ -47,7 +47,6 @@
         .card:active { transform: scale(0.95); }
         .card.used { opacity: 0.3; pointer-events: none; border-color: #333; box-shadow: none; filter: grayscale(1); }
 
-        /* --- 世界への告知（視認性極大化） --- */
         #announcement {
             position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%);
             font-size: 22px; font-weight: 900; pointer-events: none; opacity: 0; z-index: 1000;
@@ -141,17 +140,14 @@
             const p = document.createElement('div'); p.innerText = `> ${msg}`; logArea.prepend(p);
         }
 
-        // --- 視認性を極めたテロップ表示 ---
         function announce(msg, textColor = "#fff", glowColor = "#fff") {
             addLog(msg);
             announcement.innerText = msg;
             announcement.style.color = textColor;
-            // 黒い縁取り(2px) + 周囲への発光（Glow）でどんな背景でも視認可能に
             announcement.style.textShadow = `
                 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000,
                 0 0 10px ${glowColor}, 0 0 20px ${glowColor}
             `;
-            
             announcement.classList.remove('announce-show');
             void announcement.offsetWidth; 
             announcement.classList.add('announce-show');
@@ -232,7 +228,6 @@
             }
         }
 
-        // --- 破滅の実行（Cataclysm -> Anomaly へ再定義） ---
         function executeAnomaly(type, isManual = false) {
             const counts = {}; FACTIONS.forEach(f => counts[f.id] = 0);
             for(let y=0; y<GRID_SIZE; y++) {
@@ -262,15 +257,29 @@
                     if(cy+i>=0 && cy+i<GRID_SIZE) { gridState[cy+i][cx] = f.id; cells[(cy+i)*GRID_SIZE + cx].style.backgroundColor = f.color; }
                 }
             } else if (type === 'crash') {
-                // 共通イベントは白文字＋赤発光
-                announce(isManual ? "⚡ 介入: 全土崩壊！" : "💥 特異事象: 大規模な市場崩壊！", "#fff", "#f00");
+                announce(isManual ? "⚡ 介入: 市場崩壊！" : "💥 特異事象: 局地的市場崩壊！", "#fff", "#f00");
                 for(let i=0; i<GRID_SIZE*GRID_SIZE; i++) {
-                    if(Math.random() < 0.25) {
+                    // 消滅率を25%から10%へ下方修正（収束阻害の防止）
+                    if(Math.random() < 0.10) {
                         gridState[Math.floor(i/GRID_SIZE)][i%GRID_SIZE] = 0;
                         cells[i].style.backgroundColor = '';
                     }
                 }
             }
+        }
+
+        function checkVictory(counts) {
+            const totalCells = GRID_SIZE * GRID_SIZE;
+            for (const id in counts) {
+                if (counts[id] > totalCells * 0.8) {
+                    const winner = FACTIONS.find(f => f.id == id);
+                    announce(`【終戦】${winner.name} が世界を支配しました。`, winner.color, "#fff");
+                    clearInterval(gameInterval);
+                    startBtn.disabled = true;
+                    return true;
+                }
+            }
+            return false;
         }
 
         function simulate() {
@@ -283,10 +292,20 @@
                 }
             }
             updateLegend(counts);
+            if (checkVictory(counts)) return;
+
+            const occupancyRate = occupied.length / (GRID_SIZE * GRID_SIZE);
 
             doomCounter += 0.00002 * currentSpeed;
             if (Math.random() < doomCounter) {
-                const events = ['anti', 'singularity', 'crash'];
+                // 特異点到達（拡大）の比重を上げ、収束を促進
+                let events = ['anti', 'singularity', 'singularity'];
+                
+                // 占有率が90%を超えた場合、市場崩壊は発生しない（Too Big To Fail）
+                if (occupancyRate < 0.9) {
+                    events.push('crash'); 
+                }
+                
                 executeAnomaly(events[Math.floor(Math.random() * events.length)], false);
                 doomCounter = 0.0001; 
             }
