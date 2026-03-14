@@ -72,6 +72,30 @@
         @keyframes fadeUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-60px); opacity: 0; } }
         #log-area { font-size: 9px; color: #0f0; height: 40px; overflow: hidden; margin-top: 5px; border-top: 1px solid #333; padding-top: 3px; }
 
+        .meteor-ball {
+            position: fixed; border-radius: 50%; pointer-events: none; z-index: 999;
+            transform: translate(-50%, -50%);
+            background: radial-gradient(circle at 38% 32%, #fff 0%, #ffe 18%, #f90 50%, #c00 85%, transparent 100%);
+            box-shadow: 0 0 20px 6px #f90, 0 0 50px 15px #f004;
+        }
+        .m-spark {
+            position: fixed; border-radius: 50%; pointer-events: none; z-index: 998;
+            transform: translate(-50%, -50%);
+            animation: spark-anim var(--dur) ease-out forwards;
+            box-shadow: 0 0 4px #f90;
+        }
+        .shockwave {
+            position: fixed; border-radius: 50%; pointer-events: none; z-index: 997;
+            transform: translate(-50%, -50%) scale(0);
+            animation: sw-expand 0.7s ease-out forwards;
+        }
+        @keyframes sw-expand {
+            0%   { transform: translate(-50%, -50%) scale(0); opacity: 0.9; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+        }
+        #meteor-flash { position: fixed; inset: 0; z-index: 996; pointer-events: none; animation: mflash 0.45s ease-out forwards; }
+        @keyframes mflash { 0% { background: transparent; } 18% { background: rgba(255,180,30,0.55); } 100% { background: transparent; } }
+
         #territory-bar { position: absolute; bottom: 0; left: 0; width: 100%; height: 6px; display: flex; z-index: 102; pointer-events: none; }
         .t-seg { height: 100%; transition: width 0.4s ease; }
 
@@ -264,6 +288,7 @@
         stage.addEventListener('touchstart', e => {
             if (meteorPending) return;
             if (e.touches.length === 2) {
+                wasPinching = true;
                 lastPinchDist = Math.hypot(
                     e.touches[0].clientX - e.touches[1].clientX,
                     e.touches[0].clientY - e.touches[1].clientY);
@@ -292,13 +317,24 @@
             }
         }, { passive: false });
 
-        // ダブルタップでズームリセット
+        // ダブルタップでズームリセット（ピンチ終了時の誤検知を防ぐ）
         let lastTap = 0;
+        let wasPinching = false;
         stage.addEventListener('touchend', e => {
             if (meteorPending) return;
-            const now = Date.now();
-            if (now - lastTap < 300) { mapScale = 1; mapPanX = 0; mapPanY = 0; applyMapTransform(); }
-            lastTap = now;
+            if (e.touches.length === 1 && wasPinching) {
+                // ピンチ→1本指に移行：パン基準点を更新
+                lastPanTouchX = e.touches[0].clientX;
+                lastPanTouchY = e.touches[0].clientY;
+            }
+            if (e.touches.length === 0) {
+                if (!wasPinching) {
+                    const now = Date.now();
+                    if (now - lastTap < 300) { mapScale = 1; mapPanX = 0; mapPanY = 0; applyMapTransform(); }
+                    lastTap = now;
+                }
+                wasPinching = false;
+            }
         }, { passive: true });
 
         function addLog(msg) {
@@ -474,21 +510,117 @@
             meteorPending = false;
             stage.style.cursor = '';
             document.getElementById('card-meteor').classList.add('used');
+
+            const tx = e.clientX, ty = e.clientY;
+
+            // 火球を生成して落下
+            const ball = document.createElement('div');
+            ball.className = 'meteor-ball';
+            const SIZE = 44;
+            ball.style.cssText = `width:${SIZE}px;height:${SIZE}px;left:${tx}px;top:-${SIZE}px;`;
+            document.body.appendChild(ball);
+
+            const startY = -SIZE, endY = ty;
+            const duration = 480;
+            let trailTimer = 0;
+            const start = performance.now();
+
+            function fallFrame(now) {
+                const t = Math.min((now - start) / duration, 1);
+                const eased = t * t; // ease-in（加速落下）
+                const cy = startY + (endY - startY) * eased;
+                ball.style.top = cy + 'px';
+
+                // 軌跡スパーク（間引き）
+                trailTimer += now - (start + (t - 16 / duration) * duration);
+                if (trailTimer > 40) {
+                    trailTimer = 0;
+                    const s = document.createElement('div');
+                    s.className = 'm-spark';
+                    const sz = 6 + Math.random() * 8;
+                    s.style.cssText = `width:${sz}px;height:${sz}px;left:${tx + (Math.random()-0.5)*12}px;top:${cy}px;background:#f90;--tx:${(Math.random()-0.5)*30}px;--dur:0.4s;`;
+                    document.body.appendChild(s);
+                    setTimeout(() => s.remove(), 450);
+                }
+
+                if (t < 1) { requestAnimationFrame(fallFrame); }
+                else { ball.remove(); meteorImpact(tx, ty); }
+            }
+            requestAnimationFrame(fallFrame);
+        }
+
+        function meteorImpact(tx, ty) {
+            // フラッシュ
+            const flash = document.createElement('div');
+            flash.id = 'meteor-flash';
+            document.body.appendChild(flash);
+            setTimeout(() => flash.remove(), 500);
+
+            // 画面シェイク
+            let shakeCount = 0;
+            function shake() {
+                if (shakeCount++ > 14) { stage.style.marginLeft = ''; stage.style.marginTop = ''; return; }
+                const intensity = Math.max(0, 8 - shakeCount * 0.5);
+                stage.style.marginLeft = (Math.random() - 0.5) * intensity * 2 + 'px';
+                stage.style.marginTop  = (Math.random() - 0.5) * intensity * 2 + 'px';
+                setTimeout(shake, 28);
+            }
+            shake();
+
+            // 衝撃波リング（3波）
+            [180, 280, 380].forEach((size, i) => {
+                setTimeout(() => {
+                    const sw = document.createElement('div');
+                    sw.className = 'shockwave';
+                    const color = ['#f90','#f60','#f00'][i];
+                    sw.style.cssText = `left:${tx}px;top:${ty}px;width:${size}px;height:${size}px;border:${3-i}px solid ${color};`;
+                    document.body.appendChild(sw);
+                    setTimeout(() => sw.remove(), 750);
+                }, i * 110);
+            });
+
+            // 爆発スパーク（24方向）
+            for (let i = 0; i < 24; i++) {
+                const s = document.createElement('div');
+                s.className = 'm-spark';
+                const angle = (i / 24) * Math.PI * 2;
+                const dist = 60 + Math.random() * 140;
+                const sz = 4 + Math.random() * 7;
+                const colors = ['#fff','#ffe','#f90','#f60','#f30'];
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                const dur = (0.5 + Math.random() * 0.5).toFixed(2);
+                s.style.cssText = `width:${sz}px;height:${sz}px;left:${tx}px;top:${ty}px;background:${color};--tx:${Math.cos(angle)*dist}px;--ty:${Math.sin(angle)*dist}px;--dur:${dur}s;`;
+                document.body.appendChild(s);
+                setTimeout(() => s.remove(), parseFloat(dur) * 1000 + 50);
+            }
+
+            // グリッド破壊（中心から波紋状に）
             const rect = stage.getBoundingClientRect();
-            const cx = Math.min(GRID_SIZE - 1, Math.floor((e.clientX - rect.left) / rect.width * GRID_SIZE));
-            const cy = Math.min(GRID_SIZE - 1, Math.floor((e.clientY - rect.top) / rect.height * GRID_SIZE));
+            const gcx = Math.min(GRID_SIZE - 1, Math.floor((tx - rect.left) / rect.width * GRID_SIZE));
+            const gcy = Math.min(GRID_SIZE - 1, Math.floor((ty - rect.top) / rect.height * GRID_SIZE));
             const RADIUS = 8;
-            let destroyed = 0;
+
+            // 半径ごとにセルを分類して順次破壊
+            const rings = Array.from({length: RADIUS + 1}, () => []);
             for (let y = 0; y < GRID_SIZE; y++) {
                 for (let x = 0; x < GRID_SIZE; x++) {
-                    if (Math.sqrt((x - cx) ** 2 + (y - cy) ** 2) <= RADIUS && Math.random() < 0.75) {
+                    const d = Math.sqrt((x - gcx) ** 2 + (y - gcy) ** 2);
+                    const r = Math.floor(d);
+                    if (r <= RADIUS && Math.random() < 0.75) rings[r].push([x, y]);
+                }
+            }
+            let destroyed = 0;
+            rings.forEach((ring, r) => {
+                setTimeout(() => {
+                    ring.forEach(([x, y]) => {
                         gridState[y][x] = 0;
                         cells[y * GRID_SIZE + x].style.backgroundColor = '';
                         destroyed++;
-                    }
-                }
-            }
-            announce(`☄️ メテオフォール！(${destroyed}セル消滅)`, '#f90', '#f00');
+                    });
+                }, r * 35);
+            });
+
+            setTimeout(() => announce(`☄️ メテオフォール！(${destroyed}セル消滅)`, '#f90', '#f00'), RADIUS * 35 + 80);
         }
 
         function checkStateShift(faction, count) {
