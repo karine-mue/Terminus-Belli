@@ -101,7 +101,9 @@
         let gameInterval;
         let currentSpeed = 1;
         let maxSpeedReached = 1;
-        let doomCounter = 0.00001; 
+        let doomCounter = 0.00001;
+        let tickCount = 0;
+        let exhaustionPhase = false;
 
         const FACTIONS = [
             { id: 1, name: "Goo〇le", color: "#EA4335", state: "RD" }, 
@@ -189,6 +191,9 @@
         });
 
         function deploy() {
+            tickCount = 0;
+            exhaustionPhase = false;
+            doomCounter = 0.00001;
             FACTIONS.forEach(f => {
                 let x = Math.floor(Math.random()*GRID_SIZE), y = Math.floor(Math.random()*GRID_SIZE);
                 gridState[y][x] = f.id; cells[y * GRID_SIZE + x].style.backgroundColor = f.color;
@@ -240,10 +245,12 @@
                 const targetF = FACTIONS.find(f => f.id === topFactionId);
                 const targetName = targetF?.name || "不明";
                 const tColor = targetF?.color || "#fff";
-                announce(isManual ? `📜 介入: ${targetName}を解体！` : `⚖️ 特異事象: ${targetName}に司法のメス！`, tColor, "#fff");
+                // 時間経過で削除率を減衰: 序盤35% → 終盤10%
+                const antiTrustRate = isManual ? 0.35 : Math.max(0.10, 0.35 - tickCount * 0.00005);
+                announce(isManual ? `📜 介入: ${targetName}を解体！` : `⚖️ 特異事象: ${targetName}に司法のメス！(${Math.round(antiTrustRate*100)}%)`, tColor, "#fff");
                 for(let y=0; y<GRID_SIZE; y++) {
                     for(let x=0; x<GRID_SIZE; x++) {
-                        if(gridState[y][x] === topFactionId && Math.random() < 0.35) {
+                        if(gridState[y][x] === topFactionId && Math.random() < antiTrustRate) {
                             gridState[y][x] = 0; cells[y * GRID_SIZE + x].style.backgroundColor = '';
                         }
                     }
@@ -282,6 +289,7 @@
         }
 
         function simulate() {
+            tickCount++;
             const chaos = parseInt(document.getElementById('chaosSlider').value);
             const occupied = []; const counts = {}; FACTIONS.forEach(f => counts[f.id] = 0);
 
@@ -295,12 +303,40 @@
 
             const occupancyRate = occupied.length / (GRID_SIZE * GRID_SIZE);
 
-            doomCounter += 0.000002 * currentSpeed * (chaos / 5);
+            // 疲弊フェーズ: 3000ティック後にCrashを封印
+            if (tickCount > 3000 && !exhaustionPhase) {
+                exhaustionPhase = true;
+                announce("⚔️ 膠着状態 — 市場崩壊は停止", "#ff0", "#ff0");
+            }
+
+            // Doomカウンター: 時間経過で蓄積速度を減衰（収束に向かうほどイベントが減る）
+            const doomDecay = 1 / (1 + tickCount * 0.0003);
+            doomCounter += 0.000002 * currentSpeed * (chaos / 5) * doomDecay;
             if (Math.random() < doomCounter) {
                 let events = ['anti', 'singularity', 'singularity'];
-                if (occupancyRate < 0.9) { events.push('crash'); }
+                if (occupancyRate < 0.9 && !exhaustionPhase) { events.push('crash'); }
                 executeAnomaly(events[Math.floor(Math.random() * events.length)], false);
-                doomCounter = 0.00001; 
+                doomCounter = 0.00001;
+            }
+
+            // 支配補正: 高占有率かつ最大派閥60%超でデッドロック破壊
+            if (occupancyRate > 0.9) {
+                let leaderId = null, leaderCount = 0;
+                for (const id in counts) { if (counts[id] > leaderCount) { leaderCount = counts[id]; leaderId = parseInt(id); } }
+                const leaderFaction = FACTIONS.find(f => f.id === leaderId);
+                if (leaderFaction && leaderCount / (GRID_SIZE * GRID_SIZE) > 0.6) {
+                    const leaderCells = occupied.filter(c => c.id === leaderId);
+                    for (let b = 0; b < 3; b++) {
+                        const src = leaderCells[Math.floor(Math.random() * leaderCells.length)];
+                        if (!src) break;
+                        const dx = [-1,1,0,0][b % 4], dy = [0,0,-1,1][b % 4];
+                        const nx = src.x + dx, ny = src.y + dy;
+                        if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE && gridState[ny][nx] !== leaderId) {
+                            gridState[ny][nx] = leaderId;
+                            cells[ny * GRID_SIZE + nx].style.backgroundColor = leaderFaction.color;
+                        }
+                    }
+                }
             }
 
             for(let i=0; i < chaos; i++) {
