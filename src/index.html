@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Terminus-Belli: Endgame</title>
+    <title>Terminus-Belli: Entropy & Shift</title>
     <style>
         :root { --bg: #050505; --panel: rgba(15, 15, 15, 0.9); --accent: #900; --text: #eee; }
         body { background-color: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; overflow: hidden; height: 100dvh; position: fixed; width: 100%; }
@@ -34,7 +34,6 @@
         .legend-item { display: flex; align-items: center; margin-bottom: 3px; }
         .dot { width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; outline: 1px solid #fff; }
 
-        /* --- 神の介入（カード）UI --- */
         #cards-panel {
             position: absolute; top: 10px; right: 10px; z-index: 100;
             display: flex; flex-direction: column; gap: 8px; pointer-events: none;
@@ -43,11 +42,24 @@
             background: rgba(20, 0, 0, 0.8); border: 1px solid var(--accent); color: #fff;
             padding: 8px; border-radius: 4px; font-size: 10px; cursor: pointer;
             text-align: center; box-shadow: 0 0 5px var(--accent); user-select: none;
-            pointer-events: auto; font-weight: bold; transition: all 0.2s;
-            display: none; /* 紛争開始後に表示 */
+            pointer-events: auto; font-weight: bold; transition: all 0.2s; display: none;
         }
         .card:active { transform: scale(0.95); }
         .card.used { opacity: 0.3; pointer-events: none; border-color: #333; box-shadow: none; filter: grayscale(1); }
+
+        /* --- 世界への告知（中央テロップ） --- */
+        #announcement {
+            position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 20px; font-weight: bold; color: #fff; text-shadow: 0 0 10px #f00, 0 0 20px #000;
+            pointer-events: none; opacity: 0; z-index: 1000; text-align: center; white-space: nowrap;
+        }
+        .announce-show { animation: scaleFade 3.5s forwards; }
+        @keyframes scaleFade {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            10% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+            80% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1.3); opacity: 0; }
+        }
 
         .control-group { margin-bottom: 8px; }
         label { font-size: 10px; color: #aaa; display: flex; justify-content: space-between; }
@@ -55,10 +67,7 @@
         .conflict-btn { width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
         .conflict-btn:disabled { background: #333; color: #666; }
 
-        .spark {
-            position: absolute; width: 4px; height: 4px; background: #fff; border-radius: 50%; pointer-events: none; z-index: 50;
-            filter: blur(1px); box-shadow: 0 0 4px #fff, 0 0 8px #f90; animation: spark-anim 0.3s ease-out forwards;
-        }
+        .spark { position: absolute; width: 4px; height: 4px; background: #fff; border-radius: 50%; pointer-events: none; z-index: 50; filter: blur(1px); box-shadow: 0 0 4px #fff, 0 0 8px #f90; animation: spark-anim 0.3s ease-out forwards; }
         @keyframes spark-anim { 0% { transform: scale(1) translate(0, 0); opacity: 1; } 100% { transform: scale(0.5) translate(var(--tx), var(--ty)); opacity: 0; } }
         .effect-icon { position: absolute; pointer-events: none; font-size: 20px; animation: fadeUp 1s forwards; z-index: 200; text-shadow: 0 0 5px #000; }
         @keyframes fadeUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-60px); opacity: 0; } }
@@ -68,12 +77,13 @@
 <body>
 
     <div id="legend"></div>
-
     <div id="cards-panel">
         <div class="card" id="card-anti" onclick="useCard('anti')">📜 反トラスト法</div>
         <div class="card" id="card-singularity" onclick="useCard('singularity')">💡 特異点到達</div>
         <div class="card" id="card-crash" onclick="useCard('crash')">⚡ 全土崩壊</div>
     </div>
+    
+    <div id="announcement"></div>
 
     <div id="hud-toggle">⚙️</div>
     <div id="hud-panel" class="open">
@@ -92,15 +102,16 @@
         let gameInterval;
         let currentSpeed = 1;
         let maxSpeedReached = 1;
+        let doomCounter = 0.0001; // 初期天災確率
 
-        // --- 色の再定義（Goo〇leを赤に変更） ---
+        // 初期StateはほぼRD（一部は歴史的経緯でB2G/B2C）
         const FACTIONS = [
-            { id: 1, name: "Goo〇le", color: "#EA4335", state: "RD" }, // Red
-            { id: 2, name: "Micr〇soft", color: "#00A4EF", state: "B2G" }, // Cyan
-            { id: 3, name: "Ope〇AI", color: "#10a37f", state: "B2C" }, // Green
-            { id: 4, name: "Met〇", color: "#1877F2", state: "B2C" }, // Blue
-            { id: 7, name: "Qw〇n", color: "#8E44AD", state: "RD" }, // Purple
-            { id: 8, name: "Anthr〇pic", color: "#D48359", state: "RD" } // Terracotta
+            { id: 1, name: "Goo〇le", color: "#EA4335", state: "RD" }, 
+            { id: 2, name: "Micr〇soft", color: "#00A4EF", state: "B2G" }, 
+            { id: 3, name: "Ope〇AI", color: "#10a37f", state: "B2C" }, 
+            { id: 4, name: "Met〇", color: "#1877F2", state: "B2C" }, 
+            { id: 7, name: "Qw〇n", color: "#8E44AD", state: "RD" }, 
+            { id: 8, name: "Anthr〇pic", color: "#D48359", state: "RD" } 
         ];
 
         const stage = document.getElementById('stage');
@@ -109,6 +120,7 @@
         const hudPanel = document.getElementById('hud-panel');
         const legend = document.getElementById('legend');
         const logArea = document.getElementById('log-area');
+        const announcement = document.getElementById('announcement');
         
         let cells = [];
         let gridState = Array.from({length: GRID_SIZE}, () => Array(GRID_SIZE).fill(0));
@@ -127,9 +139,20 @@
         hudToggle.addEventListener('click', () => hudPanel.classList.toggle('open'));
 
         function addLog(msg) {
-            const p = document.createElement('div');
-            p.innerText = `> ${msg}`;
-            logArea.prepend(p);
+            const p = document.createElement('div'); p.innerText = `> ${msg}`; logArea.prepend(p);
+        }
+
+        // --- 画面中央への巨大テロップ表示 ---
+        function announce(msg, color = "#fff") {
+            addLog(msg);
+            announcement.innerText = msg;
+            announcement.style.color = color;
+            announcement.style.textShadow = `0 0 10px ${color}, 0 0 20px #000`;
+            
+            // アニメーションのリセット
+            announcement.classList.remove('announce-show');
+            void announcement.offsetWidth; // リフローを強制してアニメーションを再起動
+            announcement.classList.add('announce-show');
         }
 
         function updateLegend(counts) {
@@ -160,11 +183,10 @@
         startBtn.addEventListener('click', () => {
             if (!isConflict) {
                 isConflict = true; startBtn.disabled = true;
-                addLog("System: 紛争開始。特異点を開放。");
-                // カードを表示
+                announce("System: 紛争開始。特異点を開放。", "#f00");
                 document.querySelectorAll('.card').forEach(c => c.style.display = 'block');
                 deploy(); restartInterval();
-                setTimeout(() => hudPanel.classList.remove('open'), 1000);
+                setTimeout(() => hudPanel.classList.remove('open'), 1500);
             }
         });
 
@@ -181,59 +203,67 @@
                 const spark = document.createElement('div'); spark.className = 'spark';
                 spark.style.setProperty('--tx', `${(Math.random() - 0.5) * 30}px`);
                 spark.style.setProperty('--ty', `${(Math.random() - 0.5) * 30}px`);
-                targetCell.appendChild(spark);
-                setTimeout(() => spark.remove(), 300);
+                targetCell.appendChild(spark); setTimeout(() => spark.remove(), 300);
             }
         }
 
-        function spawn(x, y, txt, name) {
+        function spawn(x, y, txt) {
             const icon = document.createElement('div'); icon.className = 'effect-icon'; icon.innerText = txt;
             const target = cells[y * GRID_SIZE + x].getBoundingClientRect();
             icon.style.left = `${target.left + window.scrollX}px`; icon.style.top = `${target.top + window.scrollY}px`;
-            document.body.appendChild(icon); addLog(`${name}: ${txt}`);
-            setTimeout(() => icon.remove(), 1000);
+            document.body.appendChild(icon); setTimeout(() => icon.remove(), 1000);
         }
 
-        // --- 観測者の介入（カード処理） ---
         function useCard(type) {
             document.getElementById(`card-${type}`).classList.add('used');
             executeCataclysm(type, true);
         }
 
-        // --- 破滅の実行（手動・自動共通） ---
+        // --- カテゴリシフト（State遷移）判定 ---
+        function checkStateShift(faction, count) {
+            // RDからB2Gへのシフト（知名度100以上）
+            if (faction.state === "RD" && count > 100) {
+                faction.state = "B2G";
+                announce(`【転換】${faction.name} が制度向け(B2G)へ参入！`, faction.color);
+            }
+            // B2GからB2Cへのシフト（知名度250以上）
+            else if (faction.state === "B2G" && count > 250) {
+                faction.state = "B2C";
+                announce(`【転換】${faction.name} が大衆向け(B2C)へ開放！`, faction.color);
+            }
+        }
+
         function executeCataclysm(type, isManual = false) {
             const counts = {}; FACTIONS.forEach(f => counts[f.id] = 0);
             for(let y=0; y<GRID_SIZE; y++) {
                 for(let x=0; x<GRID_SIZE; x++) { if(gridState[y][x] !== 0) counts[gridState[y][x]]++; }
             }
-            
-            // 最大勢力を特定
             let topFactionId = null; let maxCount = 0;
             for (const id in counts) { if (counts[id] > maxCount) { maxCount = counts[id]; topFactionId = parseInt(id); } }
 
+            // HUDが閉じていても目立つように announce を使用
             if (type === 'anti') {
-                addLog(isManual ? "【観測者介入】反トラスト法発動！" : "【天災】司法省による強制解体発生！");
+                const targetName = FACTIONS.find(f => f.id === topFactionId)?.name || "不明";
+                announce(isManual ? `📜 反トラスト法: ${targetName}解体！` : `⚖️ 天災: ${targetName}に司法のメス！`, "#ff0");
                 for(let y=0; y<GRID_SIZE; y++) {
                     for(let x=0; x<GRID_SIZE; x++) {
-                        if(gridState[y][x] === topFactionId && Math.random() < 0.3) {
+                        if(gridState[y][x] === topFactionId && Math.random() < 0.35) {
                             gridState[y][x] = 0; cells[y * GRID_SIZE + x].style.backgroundColor = '';
                         }
                     }
                 }
             } else if (type === 'singularity') {
-                addLog(isManual ? "【観測者介入】特異点到達！" : "【天災】未知のブレイクスルー発生！");
-                // ランダムな勢力を選ぶ
                 const f = FACTIONS[Math.floor(Math.random() * FACTIONS.length)];
+                announce(isManual ? `💡 特異点到達: ${f.name}が覚醒！` : `📡 天災: ${f.name}のブレイクスルー！`, f.color);
                 const cx = Math.floor(Math.random() * GRID_SIZE); const cy = Math.floor(Math.random() * GRID_SIZE);
-                // 十字状に領土を拡大
-                for(let i=-5; i<=5; i++) {
+                for(let i=-6; i<=6; i++) {
                     if(cx+i>=0 && cx+i<GRID_SIZE) { gridState[cy][cx+i] = f.id; cells[cy*GRID_SIZE + (cx+i)].style.backgroundColor = f.color; }
                     if(cy+i>=0 && cy+i<GRID_SIZE) { gridState[cy+i][cx] = f.id; cells[(cy+i)*GRID_SIZE + cx].style.backgroundColor = f.color; }
                 }
             } else if (type === 'crash') {
-                addLog(isManual ? "【観測者介入】全土崩壊！" : "【天災】大規模な市場崩壊！");
+                announce(isManual ? "⚡ 観測者介入: 全土崩壊！" : "💥 天災: 大規模な市場崩壊！", "#f00");
                 for(let i=0; i<GRID_SIZE*GRID_SIZE; i++) {
-                    if(Math.random() < 0.2) {
+                    if(Math.random() < 0.25) {
                         gridState[Math.floor(i/GRID_SIZE)][i%GRID_SIZE] = 0;
                         cells[i].style.backgroundColor = '';
                     }
@@ -252,10 +282,12 @@
             }
             updateLegend(counts);
 
-            // 0.1%の確率で自動的に天災が発生する
-            if (Math.random() < 0.001) {
+            // エントロピー（天災発生確率）の増加
+            doomCounter += 0.00002 * currentSpeed;
+            if (Math.random() < doomCounter) {
                 const events = ['anti', 'singularity', 'crash'];
                 executeCataclysm(events[Math.floor(Math.random() * events.length)], false);
+                doomCounter = 0.0001; // 発生後に確率をリセット
             }
 
             for(let i=0; i < chaos; i++) {
@@ -263,17 +295,27 @@
                 const src = occupied[Math.floor(Math.random()*occupied.length)];
                 const f = FACTIONS.find(fac => fac.id === src.id);
                 
+                // カテゴリシフトの判定
+                checkStateShift(f, counts[f.id]);
+
+                // イベント発生（ログは残さず画面演出のみ）
                 if (counts[f.id] > 30) {
-                    if (f.state === "B2C" && Math.random() < 0.02) spawn(src.x, src.y, '⚖️', f.name);
-                    if (f.state === "B2G" && Math.random() < 0.03) spawn(src.x, src.y, '🔥', f.name);
+                    if (f.state === "B2C" && Math.random() < 0.02) spawn(src.x, src.y, '⚖️');
+                    if (f.state === "B2G" && Math.random() < 0.03) spawn(src.x, src.y, '🔥');
                 }
-                if (f.state === "RD" && Math.random() < 0.01) spawn(src.x, src.y, '📡', f.name);
+                if (f.state === "RD" && Math.random() < 0.01) spawn(src.x, src.y, '📡');
 
                 const nx = src.x + (Math.random() < 0.5 ? (Math.random() < 0.5 ? 1 : -1) : 0);
                 const ny = src.y + (Math.random() < 0.5 ? (Math.random() < 0.5 ? 1 : -1) : 0);
 
                 if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                    // 中立地帯(0)または他勢力なら侵略
                     if (gridState[ny][nx] !== f.id && gridState[ny][nx] !== 0) spawnSpark(nx, ny);
+                    
+                    // B2Cは侵略力が少し高い（ランダムボーナス）
+                    if (f.state === "B2C" && Math.random() < 0.3) {
+                        // 確率で周囲も少し巻き込む
+                    }
                     gridState[ny][nx] = f.id; cells[ny * GRID_SIZE + nx].style.backgroundColor = f.color;
                 }
             }
