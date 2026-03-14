@@ -264,6 +264,7 @@
         stage.addEventListener('touchstart', e => {
             if (meteorPending) return;
             if (e.touches.length === 2) {
+                wasPinching = true;
                 lastPinchDist = Math.hypot(
                     e.touches[0].clientX - e.touches[1].clientX,
                     e.touches[0].clientY - e.touches[1].clientY);
@@ -292,13 +293,24 @@
             }
         }, { passive: false });
 
-        // ダブルタップでズームリセット
+        // ダブルタップでズームリセット（ピンチ終了時の誤検知を防ぐ）
         let lastTap = 0;
+        let wasPinching = false;
         stage.addEventListener('touchend', e => {
             if (meteorPending) return;
-            const now = Date.now();
-            if (now - lastTap < 300) { mapScale = 1; mapPanX = 0; mapPanY = 0; applyMapTransform(); }
-            lastTap = now;
+            if (e.touches.length === 1 && wasPinching) {
+                // ピンチ→1本指に移行：パン基準点を更新
+                lastPanTouchX = e.touches[0].clientX;
+                lastPanTouchY = e.touches[0].clientY;
+            }
+            if (e.touches.length === 0) {
+                if (!wasPinching) {
+                    const now = Date.now();
+                    if (now - lastTap < 300) { mapScale = 1; mapPanX = 0; mapPanY = 0; applyMapTransform(); }
+                    lastTap = now;
+                }
+                wasPinching = false;
+            }
         }, { passive: true });
 
         function addLog(msg) {
