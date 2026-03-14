@@ -3,16 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Terminus-Belli: Frontline</title>
+    <title>Terminus-Belli: Endgame</title>
     <style>
         :root { --bg: #050505; --panel: rgba(15, 15, 15, 0.9); --accent: #900; --text: #eee; }
-        /* 100vhの代わりに100dvhを使用し、スマホのアドレスバーによる見切れを防止 */
         body { background-color: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; overflow: hidden; height: 100dvh; position: fixed; width: 100%; }
         
         #stage { display: grid; width: 100vw; height: 100dvh; z-index: 1; position: absolute; top: 0; left: 0; }
         .cell { outline: 0.1px solid #1a1a1a; transition: background-color 0.1s; position: relative; }
 
-        /* 歯車アイコン（少し上に配置） */
         #hud-toggle {
             position: absolute; bottom: 30px; right: 20px; z-index: 110;
             background: var(--panel); border-radius: 50%; width: 50px; height: 50px;
@@ -24,8 +22,7 @@
             position: absolute; bottom: 90px; right: 20px;
             width: 90%; max-width: 320px; background: var(--panel);
             backdrop-filter: blur(10px); border: 1px solid #444; border-radius: 12px;
-            padding: 15px; z-index: 100; box-sizing: border-box;
-            display: none; /* .open がある時だけ表示 */
+            padding: 15px; z-index: 100; box-sizing: border-box; display: none;
         }
         #hud-panel.open { display: block; }
 
@@ -37,27 +34,34 @@
         .legend-item { display: flex; align-items: center; margin-bottom: 3px; }
         .dot { width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; outline: 1px solid #fff; }
 
+        /* --- 神の介入（カード）UI --- */
+        #cards-panel {
+            position: absolute; top: 10px; right: 10px; z-index: 100;
+            display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+        }
+        .card {
+            background: rgba(20, 0, 0, 0.8); border: 1px solid var(--accent); color: #fff;
+            padding: 8px; border-radius: 4px; font-size: 10px; cursor: pointer;
+            text-align: center; box-shadow: 0 0 5px var(--accent); user-select: none;
+            pointer-events: auto; font-weight: bold; transition: all 0.2s;
+            display: none; /* 紛争開始後に表示 */
+        }
+        .card:active { transform: scale(0.95); }
+        .card.used { opacity: 0.3; pointer-events: none; border-color: #333; box-shadow: none; filter: grayscale(1); }
+
         .control-group { margin-bottom: 8px; }
         label { font-size: 10px; color: #aaa; display: flex; justify-content: space-between; }
         input[type="range"] { width: 100%; margin: 3px 0; accent-color: var(--accent); cursor: crosshair; }
-        
         .conflict-btn { width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
         .conflict-btn:disabled { background: #333; color: #666; }
 
         .spark {
-            position: absolute; width: 4px; height: 4px; background: #fff;
-            border-radius: 50%; pointer-events: none; z-index: 50;
-            filter: blur(1px); box-shadow: 0 0 4px #fff, 0 0 8px #f90;
-            animation: spark-anim 0.3s ease-out forwards;
+            position: absolute; width: 4px; height: 4px; background: #fff; border-radius: 50%; pointer-events: none; z-index: 50;
+            filter: blur(1px); box-shadow: 0 0 4px #fff, 0 0 8px #f90; animation: spark-anim 0.3s ease-out forwards;
         }
-        @keyframes spark-anim {
-            0% { transform: scale(1) translate(0, 0); opacity: 1; }
-            100% { transform: scale(0.5) translate(var(--tx), var(--ty)); opacity: 0; }
-        }
-
+        @keyframes spark-anim { 0% { transform: scale(1) translate(0, 0); opacity: 1; } 100% { transform: scale(0.5) translate(var(--tx), var(--ty)); opacity: 0; } }
         .effect-icon { position: absolute; pointer-events: none; font-size: 20px; animation: fadeUp 1s forwards; z-index: 200; text-shadow: 0 0 5px #000; }
         @keyframes fadeUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-60px); opacity: 0; } }
-
         #log-area { font-size: 9px; color: #0f0; height: 40px; overflow: hidden; margin-top: 5px; border-top: 1px solid #333; padding-top: 3px; }
     </style>
 </head>
@@ -65,22 +69,17 @@
 
     <div id="legend"></div>
 
+    <div id="cards-panel">
+        <div class="card" id="card-anti" onclick="useCard('anti')">📜 反トラスト法</div>
+        <div class="card" id="card-singularity" onclick="useCard('singularity')">💡 特異点到達</div>
+        <div class="card" id="card-crash" onclick="useCard('crash')">⚡ 全土崩壊</div>
+    </div>
+
     <div id="hud-toggle">⚙️</div>
-
     <div id="hud-panel" class="open">
-        <div class="control-group">
-            <button class="conflict-btn" id="startBtn">紛争を開始</button>
-        </div>
-        
-        <div class="control-group">
-            <label><span>秩序 (Order)</span><span>混沌 (Chaos)</span></label>
-            <input type="range" id="chaosSlider" min="1" max="25" value="1">
-        </div>
-
-        <div class="control-group">
-            <label><span>時空律 (Time): <span id="speedVal">x1</span></span><span style="color:#600; font-weight:bold;">※不可逆</span></label>
-            <input type="range" id="speedSlider" min="1" max="40" value="1">
-        </div>
+        <div class="control-group"><button class="conflict-btn" id="startBtn">紛争を開始</button></div>
+        <div class="control-group"><label><span>秩序 (Order)</span><span>混沌 (Chaos)</span></label><input type="range" id="chaosSlider" min="1" max="30" value="2"></div>
+        <div class="control-group"><label><span>時空律 (Time): <span id="speedVal">x1</span></span><span style="color:#600; font-weight:bold;">※不可逆</span></label><input type="range" id="speedSlider" min="1" max="50" value="1"></div>
         <div id="status" style="font-size:10px; color:#888; text-align:center;">Terminal Standing by...</div>
         <div id="log-area"></div>
     </div>
@@ -94,14 +93,14 @@
         let currentSpeed = 1;
         let maxSpeedReached = 1;
 
+        // --- 色の再定義（Goo〇leを赤に変更） ---
         const FACTIONS = [
-            { id: 1, name: "Goo〇le", color: "#4285F4", state: "RD" },
-            { id: 2, name: "Micr〇soft", color: "#00A4EF", state: "B2G" },
-            { id: 3, name: "Ope〇AI", color: "#10a37f", state: "B2C" },
-            { id: 4, name: "Met〇", color: "#0668E1", state: "B2C" },
-            { id: 7, name: "Qw〇n", color: "#8E44AD", state: "RD" },
-            // Anthropic(ID:8)のカラーをオレンジ・茶色系に修正
-            { id: 8, name: "Anthr〇pic", color: "#D48359", state: "RD" } 
+            { id: 1, name: "Goo〇le", color: "#EA4335", state: "RD" }, // Red
+            { id: 2, name: "Micr〇soft", color: "#00A4EF", state: "B2G" }, // Cyan
+            { id: 3, name: "Ope〇AI", color: "#10a37f", state: "B2C" }, // Green
+            { id: 4, name: "Met〇", color: "#1877F2", state: "B2C" }, // Blue
+            { id: 7, name: "Qw〇n", color: "#8E44AD", state: "RD" }, // Purple
+            { id: 8, name: "Anthr〇pic", color: "#D48359", state: "RD" } // Terracotta
         ];
 
         const stage = document.getElementById('stage');
@@ -109,8 +108,6 @@
         const hudToggle = document.getElementById('hud-toggle');
         const hudPanel = document.getElementById('hud-panel');
         const legend = document.getElementById('legend');
-        const speedSlider = document.getElementById('speedSlider');
-        const chaosSlider = document.getElementById('chaosSlider');
         const logArea = document.getElementById('log-area');
         
         let cells = [];
@@ -127,9 +124,7 @@
             updateLegend({});
         }
 
-        hudToggle.addEventListener('click', () => {
-            hudPanel.classList.toggle('open');
-        });
+        hudToggle.addEventListener('click', () => hudPanel.classList.toggle('open'));
 
         function addLog(msg) {
             const p = document.createElement('div');
@@ -144,14 +139,14 @@
                     <span>${f.name} [${f.state}] : ${counts[f.id] || 0}</span>
                 </div>
             `).join('');
+            return counts;
         }
 
-        speedSlider.addEventListener('input', (e) => {
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
             let val = parseInt(e.target.value);
             if (val < maxSpeedReached) { e.target.value = maxSpeedReached; } 
             else {
-                maxSpeedReached = val;
-                currentSpeed = val;
+                maxSpeedReached = val; currentSpeed = val;
                 document.getElementById('speedVal').innerText = `x${val}`;
                 if (isConflict) restartInterval();
             }
@@ -164,12 +159,11 @@
 
         startBtn.addEventListener('click', () => {
             if (!isConflict) {
-                isConflict = true;
-                startBtn.disabled = true;
-                addLog("Omnia ex Termino... (全ては端子より...)");
-                deploy();
-                restartInterval();
-                // 紛争開始後、自動でパネルを閉じて視界を確保する
+                isConflict = true; startBtn.disabled = true;
+                addLog("System: 紛争開始。特異点を開放。");
+                // カードを表示
+                document.querySelectorAll('.card').forEach(c => c.style.display = 'block');
+                deploy(); restartInterval();
                 setTimeout(() => hudPanel.classList.remove('open'), 1000);
             }
         });
@@ -177,44 +171,92 @@
         function deploy() {
             FACTIONS.forEach(f => {
                 let x = Math.floor(Math.random()*GRID_SIZE), y = Math.floor(Math.random()*GRID_SIZE);
-                gridState[y][x] = f.id;
-                cells[y * GRID_SIZE + x].style.backgroundColor = f.color;
+                gridState[y][x] = f.id; cells[y * GRID_SIZE + x].style.backgroundColor = f.color;
             });
         }
 
         function spawnSpark(x, y) {
-            const index = y * GRID_SIZE + x;
-            const targetCell = cells[index];
-            
-            for (let i = 0; i < 3; i++) {
-                const spark = document.createElement('div');
-                spark.className = 'spark';
-                
-                const tx = (Math.random() - 0.5) * 40; 
-                const ty = (Math.random() - 0.5) * 40; 
-                spark.style.setProperty('--tx', `${tx}px`);
-                spark.style.setProperty('--ty', `${ty}px`);
-
+            const targetCell = cells[y * GRID_SIZE + x];
+            for (let i = 0; i < 2; i++) {
+                const spark = document.createElement('div'); spark.className = 'spark';
+                spark.style.setProperty('--tx', `${(Math.random() - 0.5) * 30}px`);
+                spark.style.setProperty('--ty', `${(Math.random() - 0.5) * 30}px`);
                 targetCell.appendChild(spark);
                 setTimeout(() => spark.remove(), 300);
             }
         }
 
-        function simulate() {
-            const chaos = parseInt(chaosSlider.value);
-            const occupied = [];
-            const counts = {};
-            FACTIONS.forEach(f => counts[f.id] = 0);
+        function spawn(x, y, txt, name) {
+            const icon = document.createElement('div'); icon.className = 'effect-icon'; icon.innerText = txt;
+            const target = cells[y * GRID_SIZE + x].getBoundingClientRect();
+            icon.style.left = `${target.left + window.scrollX}px`; icon.style.top = `${target.top + window.scrollY}px`;
+            document.body.appendChild(icon); addLog(`${name}: ${txt}`);
+            setTimeout(() => icon.remove(), 1000);
+        }
 
+        // --- 観測者の介入（カード処理） ---
+        function useCard(type) {
+            document.getElementById(`card-${type}`).classList.add('used');
+            executeCataclysm(type, true);
+        }
+
+        // --- 破滅の実行（手動・自動共通） ---
+        function executeCataclysm(type, isManual = false) {
+            const counts = {}; FACTIONS.forEach(f => counts[f.id] = 0);
             for(let y=0; y<GRID_SIZE; y++) {
-                for(let x=0; x<GRID_SIZE; x++) {
-                    if(gridState[y][x] !== 0) {
-                        occupied.push({x, y, id: gridState[y][x]});
-                        counts[gridState[y][x]]++;
+                for(let x=0; x<GRID_SIZE; x++) { if(gridState[y][x] !== 0) counts[gridState[y][x]]++; }
+            }
+            
+            // 最大勢力を特定
+            let topFactionId = null; let maxCount = 0;
+            for (const id in counts) { if (counts[id] > maxCount) { maxCount = counts[id]; topFactionId = parseInt(id); } }
+
+            if (type === 'anti') {
+                addLog(isManual ? "【観測者介入】反トラスト法発動！" : "【天災】司法省による強制解体発生！");
+                for(let y=0; y<GRID_SIZE; y++) {
+                    for(let x=0; x<GRID_SIZE; x++) {
+                        if(gridState[y][x] === topFactionId && Math.random() < 0.3) {
+                            gridState[y][x] = 0; cells[y * GRID_SIZE + x].style.backgroundColor = '';
+                        }
+                    }
+                }
+            } else if (type === 'singularity') {
+                addLog(isManual ? "【観測者介入】特異点到達！" : "【天災】未知のブレイクスルー発生！");
+                // ランダムな勢力を選ぶ
+                const f = FACTIONS[Math.floor(Math.random() * FACTIONS.length)];
+                const cx = Math.floor(Math.random() * GRID_SIZE); const cy = Math.floor(Math.random() * GRID_SIZE);
+                // 十字状に領土を拡大
+                for(let i=-5; i<=5; i++) {
+                    if(cx+i>=0 && cx+i<GRID_SIZE) { gridState[cy][cx+i] = f.id; cells[cy*GRID_SIZE + (cx+i)].style.backgroundColor = f.color; }
+                    if(cy+i>=0 && cy+i<GRID_SIZE) { gridState[cy+i][cx] = f.id; cells[(cy+i)*GRID_SIZE + cx].style.backgroundColor = f.color; }
+                }
+            } else if (type === 'crash') {
+                addLog(isManual ? "【観測者介入】全土崩壊！" : "【天災】大規模な市場崩壊！");
+                for(let i=0; i<GRID_SIZE*GRID_SIZE; i++) {
+                    if(Math.random() < 0.2) {
+                        gridState[Math.floor(i/GRID_SIZE)][i%GRID_SIZE] = 0;
+                        cells[i].style.backgroundColor = '';
                     }
                 }
             }
+        }
+
+        function simulate() {
+            const chaos = parseInt(document.getElementById('chaosSlider').value);
+            const occupied = []; const counts = {}; FACTIONS.forEach(f => counts[f.id] = 0);
+
+            for(let y=0; y<GRID_SIZE; y++) {
+                for(let x=0; x<GRID_SIZE; x++) {
+                    if(gridState[y][x] !== 0) { occupied.push({x, y, id: gridState[y][x]}); counts[gridState[y][x]]++; }
+                }
+            }
             updateLegend(counts);
+
+            // 0.1%の確率で自動的に天災が発生する
+            if (Math.random() < 0.001) {
+                const events = ['anti', 'singularity', 'crash'];
+                executeCataclysm(events[Math.floor(Math.random() * events.length)], false);
+            }
 
             for(let i=0; i < chaos; i++) {
                 if(occupied.length === 0) return;
@@ -222,8 +264,8 @@
                 const f = FACTIONS.find(fac => fac.id === src.id);
                 
                 if (counts[f.id] > 30) {
-                    if (f.state === "B2C" && Math.random() < 0.03) spawn(src.x, src.y, '⚖️', f.name);
-                    if (f.state === "B2G" && Math.random() < 0.05) spawn(src.x, src.y, '🔥', f.name);
+                    if (f.state === "B2C" && Math.random() < 0.02) spawn(src.x, src.y, '⚖️', f.name);
+                    if (f.state === "B2G" && Math.random() < 0.03) spawn(src.x, src.y, '🔥', f.name);
                 }
                 if (f.state === "RD" && Math.random() < 0.01) spawn(src.x, src.y, '📡', f.name);
 
@@ -231,27 +273,11 @@
                 const ny = src.y + (Math.random() < 0.5 ? (Math.random() < 0.5 ? 1 : -1) : 0);
 
                 if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
-                    if (gridState[ny][nx] !== f.id && gridState[ny][nx] !== 0) {
-                        spawnSpark(nx, ny);
-                    }
-                    gridState[ny][nx] = f.id;
-                    cells[ny * GRID_SIZE + nx].style.backgroundColor = f.color;
+                    if (gridState[ny][nx] !== f.id && gridState[ny][nx] !== 0) spawnSpark(nx, ny);
+                    gridState[ny][nx] = f.id; cells[ny * GRID_SIZE + nx].style.backgroundColor = f.color;
                 }
             }
         }
-
-        function spawn(x, y, txt, name) {
-            const icon = document.createElement('div');
-            icon.className = 'effect-icon';
-            icon.innerText = txt;
-            const target = cells[y * GRID_SIZE + x].getBoundingClientRect();
-            icon.style.left = `${target.left + window.scrollX}px`;
-            icon.style.top = `${target.top + window.scrollY}px`;
-            document.body.appendChild(icon);
-            addLog(`${name}: ${txt} 発生`);
-            setTimeout(() => icon.remove(), 1000);
-        }
-
         init();
     </script>
 </body>
