@@ -79,7 +79,7 @@
     <div id="cards-panel">
         <div class="card" id="card-anti" onclick="useCard('anti')">📜 反トラスト法</div>
         <div class="card" id="card-singularity" onclick="useCard('singularity')">💡 特異点到達</div>
-        <div class="card" id="card-crash" onclick="useCard('crash')">⚡ 全土崩壊</div>
+        <div class="card" id="card-ipo" onclick="useCard('ipo')">💰 強制IPO</div>
     </div>
     
     <div id="announcement"></div>
@@ -325,6 +325,30 @@
                         cells[i].style.backgroundColor = '';
                     }
                 }
+            } else if (type === 'ipo') {
+                // アクティブ派閥を降順ソートして1位・2位を特定
+                const active = FACTIONS.filter(f => f.active !== false);
+                const sorted = active.slice().sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0));
+                if (sorted.length < 2) return;
+                const leader = sorted[0], second = sorted[1];
+                const gap = (counts[leader.id] || 0) - (counts[second.id] || 0);
+                const inject = Math.max(30, gap - 50); // 50セル差まで縮める
+
+                // 空きセルをシャッフルして注入
+                const empty = [];
+                for (let y = 0; y < GRID_SIZE; y++)
+                    for (let x = 0; x < GRID_SIZE; x++)
+                        if (gridState[y][x] === 0) empty.push({x, y});
+                for (let i = empty.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [empty[i], empty[j]] = [empty[j], empty[i]];
+                }
+                const spots = empty.slice(0, inject);
+                spots.forEach(({x, y}) => {
+                    gridState[y][x] = second.id;
+                    cells[y * GRID_SIZE + x].style.backgroundColor = second.color;
+                });
+                announce(`💰 強制IPO: ${second.name} に資本注入！(+${spots.length})`, second.color, '#ff0');
             }
         }
 
