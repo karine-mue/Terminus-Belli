@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Terminus-Belli: Entropy & Shift</title>
+    <title>Terminus-Belli: Anomaly</title>
     <style>
         :root { --bg: #050505; --panel: rgba(15, 15, 15, 0.9); --accent: #900; --text: #eee; }
         body { background-color: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; overflow: hidden; height: 100dvh; position: fixed; width: 100%; }
@@ -47,11 +47,11 @@
         .card:active { transform: scale(0.95); }
         .card.used { opacity: 0.3; pointer-events: none; border-color: #333; box-shadow: none; filter: grayscale(1); }
 
-        /* --- 世界への告知（中央テロップ） --- */
+        /* --- 世界への告知（視認性極大化） --- */
         #announcement {
             position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%);
-            font-size: 20px; font-weight: bold; color: #fff; text-shadow: 0 0 10px #f00, 0 0 20px #000;
-            pointer-events: none; opacity: 0; z-index: 1000; text-align: center; white-space: nowrap;
+            font-size: 22px; font-weight: 900; pointer-events: none; opacity: 0; z-index: 1000;
+            text-align: center; white-space: nowrap; letter-spacing: 1px;
         }
         .announce-show { animation: scaleFade 3.5s forwards; }
         @keyframes scaleFade {
@@ -102,9 +102,8 @@
         let gameInterval;
         let currentSpeed = 1;
         let maxSpeedReached = 1;
-        let doomCounter = 0.0001; // 初期天災確率
+        let doomCounter = 0.0001; 
 
-        // 初期StateはほぼRD（一部は歴史的経緯でB2G/B2C）
         const FACTIONS = [
             { id: 1, name: "Goo〇le", color: "#EA4335", state: "RD" }, 
             { id: 2, name: "Micr〇soft", color: "#00A4EF", state: "B2G" }, 
@@ -142,16 +141,19 @@
             const p = document.createElement('div'); p.innerText = `> ${msg}`; logArea.prepend(p);
         }
 
-        // --- 画面中央への巨大テロップ表示 ---
-        function announce(msg, color = "#fff") {
+        // --- 視認性を極めたテロップ表示 ---
+        function announce(msg, textColor = "#fff", glowColor = "#fff") {
             addLog(msg);
             announcement.innerText = msg;
-            announcement.style.color = color;
-            announcement.style.textShadow = `0 0 10px ${color}, 0 0 20px #000`;
+            announcement.style.color = textColor;
+            // 黒い縁取り(2px) + 周囲への発光（Glow）でどんな背景でも視認可能に
+            announcement.style.textShadow = `
+                2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000,
+                0 0 10px ${glowColor}, 0 0 20px ${glowColor}
+            `;
             
-            // アニメーションのリセット
             announcement.classList.remove('announce-show');
-            void announcement.offsetWidth; // リフローを強制してアニメーションを再起動
+            void announcement.offsetWidth; 
             announcement.classList.add('announce-show');
         }
 
@@ -183,7 +185,7 @@
         startBtn.addEventListener('click', () => {
             if (!isConflict) {
                 isConflict = true; startBtn.disabled = true;
-                announce("System: 紛争開始。特異点を開放。", "#f00");
+                announce("System: 紛争開始。特異点を開放。", "#fff", "#f00");
                 document.querySelectorAll('.card').forEach(c => c.style.display = 'block');
                 deploy(); restartInterval();
                 setTimeout(() => hudPanel.classList.remove('open'), 1500);
@@ -216,24 +218,22 @@
 
         function useCard(type) {
             document.getElementById(`card-${type}`).classList.add('used');
-            executeCataclysm(type, true);
+            executeAnomaly(type, true);
         }
 
-        // --- カテゴリシフト（State遷移）判定 ---
         function checkStateShift(faction, count) {
-            // RDからB2Gへのシフト（知名度100以上）
             if (faction.state === "RD" && count > 100) {
                 faction.state = "B2G";
-                announce(`【転換】${faction.name} が制度向け(B2G)へ参入！`, faction.color);
+                announce(`【転換】${faction.name} が制度向け(B2G)へ参入！`, faction.color, "#fff");
             }
-            // B2GからB2Cへのシフト（知名度250以上）
             else if (faction.state === "B2G" && count > 250) {
                 faction.state = "B2C";
-                announce(`【転換】${faction.name} が大衆向け(B2C)へ開放！`, faction.color);
+                announce(`【転換】${faction.name} が大衆向け(B2C)へ開放！`, faction.color, "#fff");
             }
         }
 
-        function executeCataclysm(type, isManual = false) {
+        // --- 破滅の実行（Cataclysm -> Anomaly へ再定義） ---
+        function executeAnomaly(type, isManual = false) {
             const counts = {}; FACTIONS.forEach(f => counts[f.id] = 0);
             for(let y=0; y<GRID_SIZE; y++) {
                 for(let x=0; x<GRID_SIZE; x++) { if(gridState[y][x] !== 0) counts[gridState[y][x]]++; }
@@ -241,10 +241,11 @@
             let topFactionId = null; let maxCount = 0;
             for (const id in counts) { if (counts[id] > maxCount) { maxCount = counts[id]; topFactionId = parseInt(id); } }
 
-            // HUDが閉じていても目立つように announce を使用
             if (type === 'anti') {
-                const targetName = FACTIONS.find(f => f.id === topFactionId)?.name || "不明";
-                announce(isManual ? `📜 反トラスト法: ${targetName}解体！` : `⚖️ 天災: ${targetName}に司法のメス！`, "#ff0");
+                const targetF = FACTIONS.find(f => f.id === topFactionId);
+                const targetName = targetF?.name || "不明";
+                const tColor = targetF?.color || "#fff";
+                announce(isManual ? `📜 介入: ${targetName}を解体！` : `⚖️ 特異事象: ${targetName}に司法のメス！`, tColor, "#fff");
                 for(let y=0; y<GRID_SIZE; y++) {
                     for(let x=0; x<GRID_SIZE; x++) {
                         if(gridState[y][x] === topFactionId && Math.random() < 0.35) {
@@ -254,14 +255,15 @@
                 }
             } else if (type === 'singularity') {
                 const f = FACTIONS[Math.floor(Math.random() * FACTIONS.length)];
-                announce(isManual ? `💡 特異点到達: ${f.name}が覚醒！` : `📡 天災: ${f.name}のブレイクスルー！`, f.color);
+                announce(isManual ? `💡 介入: ${f.name}が覚醒！` : `📡 特異事象: ${f.name}のブレイクスルー！`, f.color, "#fff");
                 const cx = Math.floor(Math.random() * GRID_SIZE); const cy = Math.floor(Math.random() * GRID_SIZE);
                 for(let i=-6; i<=6; i++) {
                     if(cx+i>=0 && cx+i<GRID_SIZE) { gridState[cy][cx+i] = f.id; cells[cy*GRID_SIZE + (cx+i)].style.backgroundColor = f.color; }
                     if(cy+i>=0 && cy+i<GRID_SIZE) { gridState[cy+i][cx] = f.id; cells[(cy+i)*GRID_SIZE + cx].style.backgroundColor = f.color; }
                 }
             } else if (type === 'crash') {
-                announce(isManual ? "⚡ 観測者介入: 全土崩壊！" : "💥 天災: 大規模な市場崩壊！", "#f00");
+                // 共通イベントは白文字＋赤発光
+                announce(isManual ? "⚡ 介入: 全土崩壊！" : "💥 特異事象: 大規模な市場崩壊！", "#fff", "#f00");
                 for(let i=0; i<GRID_SIZE*GRID_SIZE; i++) {
                     if(Math.random() < 0.25) {
                         gridState[Math.floor(i/GRID_SIZE)][i%GRID_SIZE] = 0;
@@ -282,12 +284,11 @@
             }
             updateLegend(counts);
 
-            // エントロピー（天災発生確率）の増加
             doomCounter += 0.00002 * currentSpeed;
             if (Math.random() < doomCounter) {
                 const events = ['anti', 'singularity', 'crash'];
-                executeCataclysm(events[Math.floor(Math.random() * events.length)], false);
-                doomCounter = 0.0001; // 発生後に確率をリセット
+                executeAnomaly(events[Math.floor(Math.random() * events.length)], false);
+                doomCounter = 0.0001; 
             }
 
             for(let i=0; i < chaos; i++) {
@@ -295,10 +296,8 @@
                 const src = occupied[Math.floor(Math.random()*occupied.length)];
                 const f = FACTIONS.find(fac => fac.id === src.id);
                 
-                // カテゴリシフトの判定
                 checkStateShift(f, counts[f.id]);
 
-                // イベント発生（ログは残さず画面演出のみ）
                 if (counts[f.id] > 30) {
                     if (f.state === "B2C" && Math.random() < 0.02) spawn(src.x, src.y, '⚖️');
                     if (f.state === "B2G" && Math.random() < 0.03) spawn(src.x, src.y, '🔥');
@@ -309,13 +308,7 @@
                 const ny = src.y + (Math.random() < 0.5 ? (Math.random() < 0.5 ? 1 : -1) : 0);
 
                 if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
-                    // 中立地帯(0)または他勢力なら侵略
                     if (gridState[ny][nx] !== f.id && gridState[ny][nx] !== 0) spawnSpark(nx, ny);
-                    
-                    // B2Cは侵略力が少し高い（ランダムボーナス）
-                    if (f.state === "B2C" && Math.random() < 0.3) {
-                        // 確率で周囲も少し巻き込む
-                    }
                     gridState[ny][nx] = f.id; cells[ny * GRID_SIZE + nx].style.backgroundColor = f.color;
                 }
             }
