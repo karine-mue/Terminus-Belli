@@ -256,7 +256,10 @@
                     }
                 }
             } else if (type === 'singularity') {
-                const f = FACTIONS[Math.floor(Math.random() * FACTIONS.length)];
+                // 自動発火時はRD派閥のみが突破できる（大企業はリスク回避）
+                const candidates = isManual ? FACTIONS : FACTIONS.filter(f => f.state === "RD");
+                const pool = candidates.length > 0 ? candidates : FACTIONS;
+                const f = pool[Math.floor(Math.random() * pool.length)];
                 announce(isManual ? `💡 介入: ${f.name}が覚醒！` : `📡 特異事象: ${f.name}のブレイクスルー！`, f.color, "#fff");
                 const cx = Math.floor(Math.random() * GRID_SIZE); const cy = Math.floor(Math.random() * GRID_SIZE);
                 for(let i=-6; i<=6; i++) {
@@ -313,7 +316,10 @@
             const doomDecay = 1 / (1 + tickCount * 0.0003);
             doomCounter += 0.000002 * currentSpeed * (chaos / 5) * doomDecay;
             if (Math.random() < doomCounter) {
-                let events = ['anti', 'singularity', 'singularity'];
+                // 首位が50%超えたらSingularityは封印（大企業はリスク回避）
+                let leadShare = 0;
+                for (const id in counts) { const s = counts[id]/(GRID_SIZE*GRID_SIZE); if (s > leadShare) leadShare = s; }
+                let events = leadShare > 0.5 ? ['anti', 'anti'] : ['anti', 'singularity'];
                 if (occupancyRate < 0.9 && !exhaustionPhase) { events.push('crash'); }
                 executeAnomaly(events[Math.floor(Math.random() * events.length)], false);
                 doomCounter = 0.00001;
@@ -334,6 +340,30 @@
                         if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE && gridState[ny][nx] !== leaderId) {
                             gridState[ny][nx] = leaderId;
                             cells[ny * GRID_SIZE + nx].style.backgroundColor = leaderFaction.color;
+                        }
+                    }
+                }
+            }
+
+            // ネットワーク効果: 首位派閥はシェア比例以上の展開ボーナス（非線形優位）
+            {
+                let leaderId = null, leaderCount = 0;
+                for (const id in counts) { if (counts[id] > leaderCount) { leaderCount = counts[id]; leaderId = parseInt(id); } }
+                const leaderShare = leaderCount / (GRID_SIZE * GRID_SIZE);
+                if (leaderShare > 0.25 && leaderId !== null) {
+                    const leaderFac = FACTIONS.find(f => f.id === leaderId);
+                    // 25%超えた分だけ加速: 30%シェア→+1.5、50%→+7.5、70%→+13.5
+                    const bonus = Math.floor((leaderShare - 0.25) * chaos * 3);
+                    const leaderCells = occupied.filter(c => c.id === leaderId);
+                    for (let b = 0; b < bonus; b++) {
+                        const src = leaderCells[Math.floor(Math.random() * leaderCells.length)];
+                        if (!src) break;
+                        const nx = src.x + (Math.random() < 0.5 ? (Math.random() < 0.5 ? 1 : -1) : 0);
+                        const ny = src.y + (Math.random() < 0.5 ? (Math.random() < 0.5 ? 1 : -1) : 0);
+                        if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+                            if (gridState[ny][nx] !== leaderId && gridState[ny][nx] !== 0) spawnSpark(nx, ny);
+                            gridState[ny][nx] = leaderId;
+                            cells[ny * GRID_SIZE + nx].style.backgroundColor = leaderFac.color;
                         }
                     }
                 }
